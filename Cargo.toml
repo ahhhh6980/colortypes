@@ -10,7 +10,7 @@ license-file = "LICENSE"
 
 repository = "https://github.com/ahhhh6980/colortypes"
 description = "An abstract, safe, and concise color conversion library for rust nightly\nThis requires the feature adt_const_params"
-keywords = ["color", "graphics", "image", "XYZ", "LCH", "CIELAB"]
+keywords = ["color", "graphics", "image", "XYZ", "CIELAB"]
 categories = ["multimedia::images", "mathematics", "graphics"]
 
 exclude = ["target",".git"]
