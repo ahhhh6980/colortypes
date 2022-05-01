@@ -1,0 +1,27 @@
+[package]
+name = "colortypes"
+version = "0.1.0"
+edition = "2021"
+
+authors = ["Jacob Berube"]
+readme = "README.md"
+license = "MIT"
+license-file = "LICENSE"
+
+repository = "https://github.com/ahhhh6980/colortypes"
+description = "An abstract, safe, and concise color conversion library for rust nightly\nThis requires the feature adt_const_params"
+keywords = ["color", "graphics", "image", "XYZ", "LCH", "CIELAB"]
+categories = ["multimedia::images", "mathematics", "graphics"]
+
+exclude = ["target",".git"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+paste = "1.0.7"
+
+[badges]
+maintenance = { status = "actively-developed" }
+
+[dev-dependencies]
+rand = "0.8.5"
