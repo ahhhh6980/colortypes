@@ -93,11 +93,7 @@ impl<SPACE: ColorType + Clone + Copy, const WHITE: RefWhite> Image<SPACE, WHITE>
             size,
         }
     }
-    pub fn crop_align(
-        &mut self,
-        mode: (Align, Align),
-        size: (usize, usize),
-    ) -> Image<SPACE, WHITE> {
+    pub fn crop_align(&self, mode: (Align, Align), size: (usize, usize)) -> Image<SPACE, WHITE> {
         let offset = (
             match mode.0 {
                 Align::Center => (self.size.0 / 2) - (size.0 / 2),
@@ -132,6 +128,19 @@ impl<SPACE: ColorType + Clone + Copy, const WHITE: RefWhite> Image<SPACE, WHITE>
             i += 1;
             let diff = *color - mean;
             v += diff * diff;
+        }
+
+        v / i as f64
+    }
+    pub fn covariance(&self, image: &Image<SPACE, WHITE>) -> Color<SPACE, WHITE> {
+        let mean1 = self.mean();
+        let mean2 = image.mean();
+
+        let mut v = Color::<SPACE, WHITE>::new([0.0, 0.0, 0.0, 0.0]);
+        let mut i = 0;
+        for (color1, color2) in self.pixels().iter().zip(image.pixels().iter()) {
+            i += 1;
+            v += (*color1 - mean1) * (*color2 - mean2);
         }
 
         v / i as f64
