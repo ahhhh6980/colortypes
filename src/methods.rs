@@ -10,6 +10,7 @@ https://bottosson.github.io/posts/oklab/
 // impl FromColorType<Lab> for LCH(ab)
 
 /// Implement the construction of a new color type
+#[macro_export]
 macro_rules! impl_colorspace {
     {$($struct:ident),+} => {
         $(
@@ -29,8 +30,9 @@ macro_rules! impl_colorspace {
         )+
     };
 }
-
+pub(crate) use impl_colorspace;
 /// Implement the conversion from one type to another
+#[macro_export]
 macro_rules! impl_conversion {
     ($from:ident, $to:ident, |$color_name:ident| $method:block) => {
         impl FromColorType<$from> for $to {
@@ -42,8 +44,9 @@ macro_rules! impl_conversion {
         }
     };
 }
+pub(crate) use impl_conversion;
 
-impl_colorspace! {Rgba, Xyza, Xyya, Srgba, CIELaba, CIELcha, Hsva, Hsla, Crda}
+impl_colorspace! {Rgba, Xyza, Xyya, Srgba, CIELaba, CIELcha, Hsva, Hsla, Ycbcr}
 
 impl_conversion!(Rgba, Srgba, |color| {
     let f = srgb_inv_companding;
@@ -55,7 +58,24 @@ impl_conversion!(Srgba, Rgba, |color| {
     let ch = [f(color.0), f(color.1), f(color.2)];
     [ch[0], ch[1], ch[2], color.3]
 });
-
+impl_conversion!(Ycbcr, Rgba, |color| {
+    let col = Mat3(
+        Col3(0.256789062, 0.504128906, 0.09790625),
+        Col3(-0.148222656, -0.290992187, 0.439214844),
+        Col3(0.439214844, -0.367789063, -0.071425781),
+    )
+    .inverse()
+        * Col3(color.0 - 0.0625, color.1 + 0.5, color.2 - 0.5);
+    [col.0, col.1, col.2, color.3]
+});
+impl_conversion!(Rgba, Ycbcr, |color| {
+    let col = Mat3(
+        Col3(0.256789062, 0.504128906, 0.09790625),
+        Col3(-0.148222656, -0.290992187, 0.439214844),
+        Col3(0.439214844, -0.367789063, -0.071425781),
+    ) * Col3(color.0, color.1, color.2);
+    [0.0625 + col.0, 0.5 - col.1, 0.5 + col.2, color.3]
+});
 #[rustfmt::skip]
 impl_conversion!(Hsla, Rgba, |color| {
     let h = (color.0 * 360.0) % 360.0;
