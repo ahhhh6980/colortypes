@@ -49,12 +49,12 @@ pub(crate) use impl_conversion;
 impl_colorspace! {Rgba, Xyza, Xyya, Srgba, CIELaba, CIELcha, Hsva, Hsla, Ycbcr}
 
 impl_conversion!(Rgba, Srgba, |color| {
-    let f = srgb_inv_companding;
+    let f = SRGB.transfer_inv;
     let ch = [f(color.0), f(color.1), f(color.2)];
     [ch[0], ch[1], ch[2], color.3]
 });
 impl_conversion!(Srgba, Rgba, |color| {
-    let f = srgb_companding;
+    let f = SRGB.transfer;
     let ch = [f(color.0), f(color.1), f(color.2)];
     [ch[0], ch[1], ch[2], color.3]
 });
@@ -137,7 +137,7 @@ impl_conversion!(Hsva, Rgba, |color| {
 });
 
 impl_conversion!(Rgba, Xyza, |color| {
-    let f = srgb_inv_companding;
+    let f = SRGB.transfer_inv;
     let new_ch = system_matrix(WHITE, SRGB) * Col3(f(color.0), f(color.1), f(color.2));
     [new_ch.0, new_ch.1, new_ch.2, color.3]
 });
@@ -150,7 +150,7 @@ impl_conversion!(Xyza, Srgba, |color| {
     [new_ch.0, new_ch.1, new_ch.2, color.3]
 });
 impl_conversion!(Xyza, Rgba, |color| {
-    let f = srgb_companding;
+    let f = SRGB.transfer;
     let new_ch = system_matrix(WHITE, SRGB).inverse() * Col3(color.0, color.1, color.2);
     [f(new_ch.0), f(new_ch.1), f(new_ch.2), color.3]
 });
@@ -357,7 +357,7 @@ pub fn white_tristim(t: RefWhite) -> Col3 {
 }
 
 /// linear (r,g,b) to non-linear (R,G,B)
-pub fn srgb_companding(v: f64) -> f64 {
+fn srgb_companding(v: f64) -> f64 {
     if v <= 0.0031308 {
         12.92 * v
     } else {
@@ -366,7 +366,7 @@ pub fn srgb_companding(v: f64) -> f64 {
 }
 
 /// non-linear (R,G,B) to linear (r,g,b)
-pub fn srgb_inv_companding(v: f64) -> f64 {
+fn srgb_inv_companding(v: f64) -> f64 {
     if v <= 0.04045 {
         v * 12.92f64.recip()
     } else {
@@ -376,7 +376,7 @@ pub fn srgb_inv_companding(v: f64) -> f64 {
 
 /// linear (r,g,b) to non-linear (R,G,B)
 #[allow(dead_code)]
-pub fn l_companding(v: f64) -> f64 {
+fn l_companding(v: f64) -> f64 {
     if v <= 0.008856 {
         v * 90.33
     } else {
@@ -386,7 +386,7 @@ pub fn l_companding(v: f64) -> f64 {
 
 /// non-linear (R,G,B) to linear (r,g,b)
 #[allow(dead_code)]
-pub fn l_inv_companding(x: f64) -> f64 {
+fn l_inv_companding(x: f64) -> f64 {
     if x <= 0.08 {
         0.110706 * x
     } else {

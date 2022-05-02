@@ -1,6 +1,7 @@
 // TO-DO: https://doc.rust-lang.org/book/ch11-03-test-organization.html
-use colortypes::methods::{CIELaba, CIELcha, Hsva, Rgba, Srgba, Xyza};
+use colortypes::colors::{CIELaba, CIELcha, Hsva, Rgba, Srgba, Xyza};
 use colortypes::types::FromColorType;
+
 extern crate rand;
 use rand::Rng;
 macro_rules! test_conversion_and_back {

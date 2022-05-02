@@ -1,4 +1,4 @@
-use colortypes::methods::Rgba;
+use colortypes::colors::Rgba;
 use colortypes::types::{Color, RefWhite::D65};
 
 #[allow(unused)]

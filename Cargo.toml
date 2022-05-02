@@ -1,6 +1,6 @@
 [package]
 name = "colortypes"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 
 authors = ["Jacob Berube"]
@@ -9,7 +9,7 @@ license = "MIT"
 license-file = "LICENSE"
 
 repository = "https://github.com/ahhhh6980/colortypes"
-description = "An abstract, safe, and concise color conversion library for rust nightly\nThis requires the feature adt_const_params"
+description = "An abstract, safe, and concise color conversion library for rust nightly"
 keywords = ["color", "graphics", "image", "XYZ", "CIELAB"]
 categories = ["multimedia::images", "mathematics", "graphics"]
 

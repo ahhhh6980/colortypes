@@ -24,8 +24,7 @@ When converting you call the `from_color` method of the colortype struct on your
 ## Example usage
 
 ```rust
-use colortypes::methods::{Rgba, Xyza};
-use colortypes::types::{Color, FromColorType, RefWhite::*};
+use colortypes::{Color, FromColorType, RefWhite::*, Rgba, Xyza};
 
 fn main() {
     // You can directly call Rgba this way (defaults to D65)
@@ -34,7 +33,7 @@ fn main() {
     let color = Rgba::new_w::<{ D65 }>([0.0, 0.0, 0.0, 1.0]);
     // Or can call Color and specify Rgba this way
     let color = Color::<Rgba, { D65 }>::new([0.0, 0.0, 0.0, 1.0]);
-    
+
     // To convert to Xyza
     let new_color = Xyza::from_color(color);
 }
@@ -44,11 +43,10 @@ fn main() {
 
 This crate also provides a type for dealing with images, it's still work in progress
 ```rust
-use colortypes::methods::*;
-use colortypes::types::*;
+use colortypes::{Align, Image, RefWhite::*, Rgba, Xyya};
 
 fn main() {
-    let mut img = Image::<Rgba, { RefWhite::D65 }>::new((6000, 4000));
+    let mut img = Image::<Rgba, { D65 }>::new((6000, 4000));
 
     img.put_pixel((0, 0), Rgba::new([0.7, 0.3, 0.2, 1.0]));
 
@@ -56,7 +54,7 @@ fn main() {
     let new_img_b = img.convert::<Xyya>();
     let mut new_img = ((new_img + new_img_b) / 2.0).convert::<Rgba>();
 
-    new_img.crop_align((Align::Front, Align::Front), (256, 256));
+    new_img = new_img.crop_align((Align::Front, Align::Front), (256, 256));
 
     let my_col = new_img.get_pixel((0, 0));
 }

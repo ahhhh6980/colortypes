@@ -1,7 +1,6 @@
 //! An Example of initializing a Color
 
-use colortypes::methods::Rgba;
-use colortypes::types::{Color, RefWhite::*};
+use colortypes::{Color, RefWhite::*, Rgba};
 extern crate colortypes;
 
 #[allow(unused)]
