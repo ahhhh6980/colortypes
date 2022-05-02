@@ -44,6 +44,9 @@ impl Col3 {
     pub fn over(&self, f: fn(x: f64) -> f64) -> Col3 {
         Col3(f(self.0), f(self.1), f(self.2))
     }
+    pub fn to_arr(&self) -> [f64; 3] {
+        [self.0, self.1, self.2]
+    }
 }
 
 #[allow(dead_code)]
