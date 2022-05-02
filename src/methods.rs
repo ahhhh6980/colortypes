@@ -103,6 +103,7 @@ impl_conversion!(Rgba, Hsva, |color| {
 });
 
 impl_conversion!(Hsva, Rgba, |color| {
+    let Color(_, _, _, _, _) = color;
     fn f(h: f64, s: f64, v: f64, n: f64) -> f64 {
         let k = (n + (h / 60.0)) % 6.0;
         v - (v * s * (0.0f64).max((k).min((4.0 - k).min(1.0))))

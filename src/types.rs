@@ -3,7 +3,7 @@ pub trait ColorType {}
 /// Method for safely converting between ColorType structs
 pub trait FromColorType<SPACE>: ColorType
 where
-    SPACE: ColorType,
+    SPACE: ColorType + Clone + Copy,
 {
     fn from_color<const WHITE: RefWhite>(_: Color<SPACE, WHITE>) -> Color<Self, WHITE>
     where
@@ -61,7 +61,7 @@ pub struct Col3(pub f64, pub f64, pub f64);
 ///
 /// An image that can do math and has operator overloading
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
-pub struct Image<SPACE: ColorType, const WHITE: RefWhite> {
+pub struct Image<SPACE: ColorType + Clone + Copy, const WHITE: RefWhite> {
     pub data: Vec<Color<SPACE, WHITE>>,
     pub size: (usize, usize),
 }
@@ -70,7 +70,7 @@ pub struct Image<SPACE: ColorType, const WHITE: RefWhite> {
 ///
 /// What kind of values to init Image with
 #[allow(dead_code)]
-pub enum ImageInit<SPACE: ColorType, const WHITE: RefWhite> {
+pub enum ImageInit<SPACE: ColorType + Clone + Copy, const WHITE: RefWhite> {
     Zero,
     One,
     Custom(Color<SPACE, WHITE>),
