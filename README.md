@@ -20,22 +20,22 @@ When converting you call the `from_color` method of the colortype struct on your
 | RGB | LCH | Through XYZ |
 | RGB | LAB | Through XYZ |
 | LAB | LCH | Directly |
+| RGB | YcBcR | Directly |
 
 ## Example usage
 
 ```rust
-use colortypes::{Color, FromColorType, RefWhite::*, Rgba, Xyza};
+use colortypes::{Color, FromColorType, Rgba, Xyza, SRGB};
 
 fn main() {
     // You can directly call Rgba this way (defaults to D65)
-    let color = Rgba::new([0.0, 0.0, 0.0, 1.0]);
-    // You can directly call Rgba this way and specify white reference
-    let color = Rgba::new_w::<{ D65 }>([0.0, 0.0, 0.0, 1.0]);
+    let color = Rgba::new::<{ SRGB }>([0.0, 0.0, 0.0, 1.0]);
     // Or can call Color and specify Rgba this way
-    let color = Color::<Rgba, { D65 }>::new([0.0, 0.0, 0.0, 1.0]);
+    let color = Color::<Rgba, { SRGB }>::new([0.0, 0.0, 0.0, 1.0]);
 
     // To convert to Xyza
     let new_color = Xyza::from_color(color);
+}et new_color = Xyza::from_color(color);
 }
 ```
 
@@ -43,10 +43,10 @@ fn main() {
 
 This crate also provides a type for dealing with images, it's still work in progress
 ```rust
-use colortypes::{Align, Image, RefWhite::*, Rgba, Xyya};
+use colortypes::{Align, Image, Rgba, Xyya, SRGB};
 
 fn main() {
-    let mut img = Image::<Rgba, { D65 }>::new((6000, 4000));
+    let mut img = Image::<Rgba, { SRGB }>::new((6000, 4000));
 
     img.put_pixel((0, 0), Rgba::new([0.7, 0.3, 0.2, 1.0]));
 
