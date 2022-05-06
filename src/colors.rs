@@ -106,7 +106,7 @@ impl_conversion!(Hsla, Rgba, |color| {
 
     let m = color.2 - (c * 0.5);
 
-    [r + m, g + m, b + m, color.0]
+    [r + m, g + m, b + m, color.3]
 });
 
 impl_conversion!(Rgba, Hsva, |color| {
@@ -166,7 +166,7 @@ impl_conversion!(Xyza, Rgba, |color| {
 });
 impl_conversion!(Xyza, Xyya, |color| {
     let s = color.0 + color.1 + color.2;
-    [color.0 * s.recip(), color.1 * s.recip(), color.2, color.3]
+    [color.0 * s.recip(), color.1 * s.recip(), color.1, color.3]
 });
 impl_conversion!(Xyya, Xyza, |color| {
     [
