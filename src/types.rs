@@ -1,22 +1,22 @@
-use std::{fmt, marker::PhantomData};
+use std::{fmt, marker::PhantomData, thread};
 
 use crate::{colors::CIELaba, CIELcha, Xyza, SRGB};
 
-pub trait ColorType: Copy {}
+pub trait ColorType: 'static + Copy + Send + Sync {}
 
 /// Method for safely converting between ColorType structs
 pub trait FromColorType<SPACE>: ColorType
 where
-    SPACE: ColorType + Clone + Copy,
+    SPACE: 'static + ColorType + Clone + Copy + Send + Sync,
 {
     fn from_color<const GAMUT: ColorGamut>(_: Color<SPACE, GAMUT>) -> Color<Self, GAMUT>
     where
-        Self: std::marker::Sized;
+        Self: std::marker::Sized + Clone + Copy + Send + Sync;
 }
 
 /// An abstract color type that has operator overloading
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
-pub struct Color<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut>(
+pub struct Color<SPACE: 'static + ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut>(
     pub f64,
     pub f64,
     pub f64,
@@ -93,7 +93,7 @@ impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> Default for Color
 }
 
 #[allow(dead_code)]
-impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> Color<SPACE, GAMUT> {
+impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Color<SPACE, GAMUT> {
     /// Return the reference white point
     #[inline]
     pub fn white(&self) -> White {
@@ -844,13 +844,13 @@ impl std::ops::Div<Col3> for f64 {
 ///
 /// An image that can do math and has operator overloading
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
-pub struct Image<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> {
+pub struct Image<SPACE: 'static + ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> {
     pub data: Vec<Color<SPACE, GAMUT>>,
     pub size: (usize, usize),
 }
 
 #[allow(dead_code)]
-impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> Image<SPACE, GAMUT> {
+impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Image<SPACE, GAMUT> {
     /// Return an empty Image
     fn default() -> Image<SPACE, GAMUT> {
         Image {
@@ -925,7 +925,7 @@ impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> Image<SPACE, GAMU
     }
     /// Convert all colors in the image
     #[rustfmt::skip]
-    pub fn convert<NEWSPACE: ColorType + FromColorType<SPACE> + Clone + Copy>(&self) -> Image<NEWSPACE, GAMUT> {
+    pub fn convert<NEWSPACE: ColorType + FromColorType<SPACE> + Clone + Copy + Send + Sync>(&self) -> Image<NEWSPACE, GAMUT> {
         Image {
             data: self.pixels().iter().map(
                 |x| NEWSPACE::from_color(*x)
@@ -1017,6 +1017,7 @@ impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> Image<SPACE, GAMU
         }
         avg / i as f64
     }
+
     /// The mean of all colors in a given color space
     pub fn mean_in_space<NEWSPACE: ColorType + FromColorType<SPACE> + Clone + Copy>(
         &self,
@@ -1043,6 +1044,7 @@ impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> Image<SPACE, GAMU
 
         v / i as f64
     }
+
     /// Return the variance of color in a given color space
     pub fn variance_in_space<NEWSPACE: ColorType + FromColorType<SPACE> + Clone + Copy>(
         &self,
@@ -1075,7 +1077,9 @@ impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> Image<SPACE, GAMU
     }
 
     /// Return the covariance of color with another Image in a given color space
-    pub fn covariance_in_space<NEWSPACE: ColorType + FromColorType<SPACE> + Clone + Copy>(
+    pub fn covariance_in_space<
+        NEWSPACE: 'static + ColorType + FromColorType<SPACE> + Clone + Copy,
+    >(
         &self,
         image: &Image<SPACE, GAMUT>,
     ) -> Color<NEWSPACE, GAMUT> {
@@ -1084,6 +1088,7 @@ impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> Image<SPACE, GAMU
 
         let mut v = Color::<NEWSPACE, GAMUT>::new([0.0, 0.0, 0.0, 0.0]);
         let mut i = 0;
+
         for (color1, color2) in self.pixels().iter().zip(image.pixels().iter()) {
             i += 1;
             v += (NEWSPACE::from_color(*color1) - mean1) * (NEWSPACE::from_color(*color2) - mean2);
@@ -1093,21 +1098,24 @@ impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> Image<SPACE, GAMU
     }
 
     // Structural similarity index with another image
-    pub fn ssim(&self, image: Image<SPACE, GAMUT>) -> f64
+    pub fn ssim(&self, image: Image<SPACE, GAMUT>) -> Color<CIELcha, GAMUT>
     where
         CIELcha: FromColorType<SPACE>,
     {
-        let meanx = self.mean_in_space::<CIELcha>().0;
-        let meany = image.mean_in_space::<CIELcha>().0;
+        let self_lch = self.convert::<CIELcha>();
+        let img_lch = image.convert::<CIELcha>();
 
-        let variancex = self.variance_in_space::<CIELcha>().0;
-        let variancey = image.variance_in_space::<CIELcha>().0;
+        let meanx = self_lch.mean();
+        let meany = img_lch.mean();
 
-        let covariance = self.covariance_in_space::<CIELcha>(&image).0;
+        let variancex = self_lch.variance();
+        let variancey = img_lch.variance();
+
+        let covariance = self_lch.covariance(&img_lch);
 
         let (c1, c2) = (
-            (0.01 * (2f64.powi(16) - 1.0)).powi(2),
-            (0.03 * (2f64.powi(16) - 1.0)).powi(2),
+            Color::new([(0.01 * (2f64.powi(16) - 1.0)).powi(2); 4]),
+            Color::new([(0.03 * (2f64.powi(16) - 1.0)).powi(2); 4]),
         );
 
         (((2.0 * meanx * meany) + c1) * ((covariance + c2) * 2.0))

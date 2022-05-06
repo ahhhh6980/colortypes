@@ -151,6 +151,11 @@ impl_conversion!(Rgba, Xyza, |color| {
     let new_ch = color.gamut().conversion_matrix() * Col3(f(color.0), f(color.1), f(color.2));
     [new_ch.0, new_ch.1, new_ch.2, color.3]
 });
+impl_conversion!(Xyza, Rgba, |color| {
+    let f = |v| color.gamut().transfer_fn(v);
+    let new_ch = color.gamut().conversion_matrix().inverse() * Col3(color.0, color.1, color.2);
+    [f(new_ch.0), f(new_ch.1), f(new_ch.2), color.3]
+});
 impl_conversion!(Srgba, Xyza, |color| {
     let new_ch = color.gamut().conversion_matrix() * Col3(color.0, color.1, color.2);
     [new_ch.0, new_ch.1, new_ch.2, color.3]
@@ -158,11 +163,6 @@ impl_conversion!(Srgba, Xyza, |color| {
 impl_conversion!(Xyza, Srgba, |color| {
     let new_ch = color.gamut().conversion_matrix().inverse() * Col3(color.0, color.1, color.2);
     [new_ch.0, new_ch.1, new_ch.2, color.3]
-});
-impl_conversion!(Xyza, Rgba, |color| {
-    let f = |v| color.gamut().transfer_fn(v);
-    let new_ch = color.gamut().conversion_matrix().inverse() * Col3(color.0, color.1, color.2);
-    [f(new_ch.0), f(new_ch.1), f(new_ch.2), color.3]
 });
 impl_conversion!(Xyza, Xyya, |color| {
     let s = color.0 + color.1 + color.2;
