@@ -20,7 +20,6 @@ macro_rules! impl_colorspace {
             pub struct $struct;
             impl ColorType for $struct {}
             impl $struct {
-                #[allow(dead_code)]
                 pub fn new<const GAMUT: ColorGamut>(ch: [f64;4]) -> Color<$struct, GAMUT> {
                     Color::<$struct, GAMUT>::new(ch)
                 }
@@ -29,6 +28,7 @@ macro_rules! impl_colorspace {
     };
 }
 pub(crate) use impl_colorspace;
+
 /// Implement the conversion from one type to another
 #[macro_export]
 macro_rules! impl_conversion {
