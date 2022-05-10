@@ -878,6 +878,36 @@ pub struct Image<SPACE: 'static + ColorType + Clone + Copy + Send + Sync, const 
     pub size: (usize, usize),
 }
 type I<'a, S, const G: ColorGamut> = Iter<'a, Color<S, G>>;
+// impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut>
+//     Iterator<Item = Color<SPACE, GAMUT>> for Image<SPACE, GAMUT>
+// {
+//     type Item;
+
+//     fn next(&mut self) -> Option<Self::Item> {
+//         todo!()
+//     }
+// }
+
+trait Container<'a, SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> {
+    type ItemIterator: Iterator<Item = &'a Color<SPACE, GAMUT>>;
+
+    fn items(&'a self) -> Self::ItemIterator;
+}
+
+struct ColorContainer<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> {
+    items: Vec<Color<SPACE, GAMUT>>,
+}
+
+impl<'a, SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut>
+    Container<'a, SPACE, GAMUT> for ColorContainer<SPACE, GAMUT>
+{
+    type ItemIterator = std::slice::Iter<'a, Color<SPACE, GAMUT>>;
+
+    fn items(&'a self) -> Self::ItemIterator {
+        self.items.iter()
+    }
+}
+
 #[allow(dead_code)]
 impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Image<SPACE, GAMUT> {
     /// Return an empty Image
@@ -977,7 +1007,7 @@ impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Ima
     /// Apply a function over all pixels
     pub fn for_each_pixel<F>(&self, f: F)
     where
-        F: Fn(&Color<SPACE, GAMUT>),
+        F: FnMut(&Color<SPACE, GAMUT>),
     {
         let _t = self.pixels_iter().for_each(f);
     }
@@ -993,7 +1023,7 @@ impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Ima
     /// Map a function over pixels and return a Color
     pub fn map_pixels<F>(&self, f: F) -> Map<Iter<'_, Color<SPACE, GAMUT>>, F>
     where
-        F: Fn(&Color<SPACE, GAMUT>) -> Color<SPACE, GAMUT>,
+        F: FnMut(&Color<SPACE, GAMUT>) -> Color<SPACE, GAMUT>,
     {
         self.pixels_iter().map(f)
     }
@@ -1001,7 +1031,7 @@ impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Ima
     /// Map a function over pixels and return an f64
     pub fn map_f<F>(&self, f: F) -> Map<Iter<'_, Color<SPACE, GAMUT>>, F>
     where
-        F: Fn(&Color<SPACE, GAMUT>) -> f64,
+        F: FnMut(&Color<SPACE, GAMUT>) -> f64,
     {
         self.pixels_iter().map(f)
     }
@@ -1013,7 +1043,7 @@ impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Ima
         f: F,
     ) -> Map<Zip<I<SPACE, GAMUT>, I<SPACE, GAMUT>>, F>
     where
-        F: Fn((&Color<SPACE, GAMUT>, &Color<SPACE, GAMUT>)) -> Color<SPACE, GAMUT>,
+        F: FnMut((&Color<SPACE, GAMUT>, &Color<SPACE, GAMUT>)) -> Color<SPACE, GAMUT>,
     {
         self.pixels_zip(image).map(f)
     }
@@ -1022,7 +1052,7 @@ impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Ima
     pub fn map_pixels_to<NEWSPACE, F>(&self, f: F) -> Map<Iter<'_, Color<SPACE, GAMUT>>, F>
     where
         NEWSPACE: ColorType + FromColorType<SPACE> + Clone + Copy + Send + Sync,
-        F: Fn(&Color<SPACE, GAMUT>) -> Color<NEWSPACE, GAMUT>,
+        F: FnMut(&Color<SPACE, GAMUT>) -> Color<NEWSPACE, GAMUT>,
     {
         self.pixels_iter().map(f)
     }
@@ -1035,7 +1065,7 @@ impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Ima
     ) -> Map<Zip<I<SPACE, GAMUT>, I<SPACE, GAMUT>>, F>
     where
         NEWSPACE: ColorType + FromColorType<SPACE> + Clone + Copy + Send + Sync,
-        F: Fn((&Color<SPACE, GAMUT>, &Color<SPACE, GAMUT>)) -> Color<NEWSPACE, GAMUT>,
+        F: FnMut((&Color<SPACE, GAMUT>, &Color<SPACE, GAMUT>)) -> Color<NEWSPACE, GAMUT>,
     {
         self.pixels_zip(image).map(f)
     }
@@ -1082,7 +1112,7 @@ impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Ima
     #[rustfmt::skip]
     pub fn convert<NEWSPACE: ColorType + FromColorType<SPACE> + Clone + Copy + Send + Sync>(&self) -> Image<NEWSPACE, GAMUT> {
         Image {
-            data: self.map_pixels_to::<NEWSPACE, _>(
+            data: self.pixels_iter().map(
                 |x| NEWSPACE::from_color(*x)
             ).collect::<Vec<Color<NEWSPACE, GAMUT>>>(),
             size: self.size,
@@ -1238,7 +1268,7 @@ impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Ima
         let mut i = 0;
         for color in self.pixels_zip(image) {
             i += 1;
-            let diff = (*color.0 - mean.0, *color.0 - mean.0);
+            let diff = (*color.0 - mean.0, *color.1 - mean.1);
             v.0 += diff.0 * diff.0;
             v.1 += diff.1 * diff.1;
         }
@@ -1270,7 +1300,7 @@ impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Ima
 
         let mut v = Color::<SPACE, GAMUT>::new([0.0, 0.0, 0.0, 0.0]);
         let mut i = 0;
-        for (color1, color2) in self.pixels_iter().zip(image.pixels_iter()) {
+        for (color1, color2) in self.pixels_zip(image) {
             i += 1;
             v += (*color1 - mean1) * (*color2 - mean2);
         }
