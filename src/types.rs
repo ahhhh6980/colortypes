@@ -1,4 +1,9 @@
-use std::{fmt, marker::PhantomData, thread};
+use std::{
+    fmt,
+    iter::{Map, Zip},
+    marker::PhantomData,
+    slice::{Iter, IterMut},
+};
 
 use crate::{colors::CIELaba, CIELcha, Xyza, SRGB};
 
@@ -30,14 +35,17 @@ macro_rules! impl_float_ops_color {
     ) => {
         paste::item! {
         $(
+        /// [<$name_1_arg>]
         pub fn [<$name_1_arg:snake>] (&self) -> Color<SPACE, GAMUT> {
              apply_ops_color!(($name_1_arg),(self))
         }
         )*
         $(
+        /// [<$name_2_arg>]
         pub fn [<$name_2_arg:snake _color>] (&self, rhs: Color<SPACE, GAMUT>) -> Color<SPACE, GAMUT> {
             apply_ops_color!(($name_2_arg),(self, rhs))
         }
+        /// [<$name_2_arg>]
         pub fn [<$name_2_arg:snake>] (&self, rhs: f64) -> Color<SPACE, GAMUT> {
             Color::<SPACE, GAMUT>::new(
                 [
@@ -50,6 +58,7 @@ macro_rules! impl_float_ops_color {
         }
         )*
         $(
+        /// [<$name_3_arg>]
         pub fn [<$name_3_arg:snake _color>] (&self, rhs: Color<SPACE, GAMUT>, rhs2: Color<SPACE,GAMUT>) -> Color<SPACE, GAMUT> {
             apply_ops_color!(($name_3_arg),(self, rhs, rhs2))
         }
@@ -57,9 +66,9 @@ macro_rules! impl_float_ops_color {
     }
     };
 }
+
 macro_rules! apply_ops_color {
     (($name_arg:ident),($($name:ident),*) ) => {
-
         paste::item! {
             Color::<SPACE, GAMUT>::new(
                 [
@@ -194,7 +203,7 @@ impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Col
         SPACE::from_color(Xyza::new::<{ GAMUT }>([x, y, z, self.3]))
     }
 
-    // Color difference for acceptability
+    /// Color difference for acceptability
     pub fn delta_e_a(self, color: Color<SPACE, GAMUT>) -> f64
     where
         CIELaba: FromColorType<SPACE>,
@@ -202,7 +211,7 @@ impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Col
         self.delta_e(color, (2.0, 1.0))
     }
 
-    // Color difference for perceptibility
+    /// Color difference for perceptibility
     pub fn delta_e_p(self, color: Color<SPACE, GAMUT>) -> f64
     where
         CIELaba: FromColorType<SPACE>,
@@ -283,6 +292,15 @@ impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Col
         (powf, atan2, log, max, min, hypot),
         (mul_add)
     );
+}
+
+impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> std::ops::Neg
+    for Color<SPACE, GAMUT>
+{
+    type Output = Color<SPACE, GAMUT>;
+    fn neg(self) -> Self::Output {
+        Self::new([-self.0, -self.1, -self.2, self.3])
+    }
 }
 
 impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> std::ops::Add<Color<SPACE, GAMUT>>
@@ -415,7 +433,6 @@ impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> std::ops::Mul<f64
 impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> std::ops::MulAssign<f64>
     for Color<SPACE, GAMUT>
 {
-    // type Output = Color<SPACE, GAMUT>;
     fn mul_assign(&mut self, rhs: f64) {
         self.0 *= rhs;
         self.1 *= rhs;
@@ -445,7 +462,6 @@ impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> std::ops::Div<f64
 impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> std::ops::DivAssign<f64>
     for Color<SPACE, GAMUT>
 {
-    // type Output = Color<SPACE, GAMUT>;
     fn div_assign(&mut self, rhs: f64) {
         self.0 /= rhs;
         self.1 /= rhs;
@@ -462,8 +478,6 @@ impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> std::ops::Div<Col
         Color::new([self / rhs.0, self / rhs.1, self / rhs.2, self / rhs.3])
     }
 }
-
-///
 
 #[allow(dead_code)]
 /// The reference white point of the color. Default: D65
@@ -507,6 +521,7 @@ pub const E: White = White {
 };
 
 /// Convert a color temperature into xy chromaticity coordinates
+///
 /// <http://www.brucelindbloom.com/index.html>
 fn t_to_xy(t: f64) -> [f64; 2] {
     let x = if (4000f64..=7000f64).contains(&t) {
@@ -575,6 +590,7 @@ impl ColorGamut {
     ///
     /// sources:
     /// <https://mina86.com/2019/srgb-xyz-matrix/>
+    ///
     /// <http://www.brucelindbloom.com/index.html?WorkingSpaceInfo.html#Specifications>
     pub fn custom_system_matrix(&self, t: f64) -> Mat3 {
         let s = self.primaries_xyy();
@@ -629,10 +645,12 @@ impl Col3 {
     pub fn new(c: [f64; 3]) -> Self {
         Col3(c[0], c[1], c[2])
     }
+
     /// Multiply a Col3 element-wise with another
     pub fn mult(&self, rhs: Col3) -> Col3 {
         Col3(self.0 * rhs.0, self.1 * rhs.1, self.2 * rhs.2)
     }
+
     /// Divide a Col3 element-wise with another
     pub fn div(&self, rhs: Col3) -> Col3 {
         Col3(
@@ -641,10 +659,12 @@ impl Col3 {
             self.2 * rhs.2.recip(),
         )
     }
+
     /// Apply an operation over the elements
     pub fn over(&self, f: fn(x: f64) -> f64) -> Col3 {
         Col3(f(self.0), f(self.1), f(self.2))
     }
+
     /// Return an array
     pub fn to_arr(self) -> [f64; 3] {
         [self.0, self.1, self.2]
@@ -661,7 +681,8 @@ impl Mat3 {
             Col3(m[2][0], m[2][1], m[2][2]),
         )
     }
-    /// COnvert the mat3 into an array
+
+    /// Convert the mat3 into an array
     pub fn to_arr(self) -> [[f64; 3]; 3] {
         [
             [self.0 .0, self.0 .1, self.0 .2],
@@ -669,23 +690,29 @@ impl Mat3 {
             [self.2 .0, self.2 .1, self.2 .2],
         ]
     }
+
     /// Return matrix of 0's
     pub fn zeros() -> Mat3 {
         Mat3(Col3(0., 0., 0.), Col3(0., 0., 0.), Col3(0., 0., 0.))
     }
+
     /// Returns the identity matrix
     pub fn identity() -> Mat3 {
         Mat3(Col3(1., 0., 0.), Col3(0., 1., 0.), Col3(0., 0., 1.))
     }
+
     /// Grab a row
     pub fn row(&self, n: usize) -> &Col3 {
         [&self.0, &self.1, &self.2][n % 3]
     }
+
     /// Assign a row
     pub fn row_assign(&mut self, n: usize, new_row: Col3) {
         *[&mut self.0, &mut self.1, &mut self.2][n % 3] = new_row;
     }
+
     /// Inverse of matrix using cross products and the triple product
+    ///
     /// <https://en.wikipedia.org/wiki/Invertible_matrix#Inversion_of_3_%C3%97_3_matrices>
     pub fn inverse(&self) -> Mat3 {
         let det: f64 = (self.0 * (self.1 ^ self.2)).recip();
@@ -696,6 +723,7 @@ impl Mat3 {
         )
         .transpose()
     }
+
     /// Transpose matrix
     pub fn transpose(&self) -> Mat3 {
         Mat3(
@@ -704,6 +732,7 @@ impl Mat3 {
             Col3(self.0 .2, self.1 .2, self.2 .2),
         )
     }
+
     /// Apply an operation over all the columns
     pub fn over_columns(&self, rhs: Col3, f: fn(a: Col3, b: Col3) -> Col3) -> Mat3 {
         Mat3(f(self.0, rhs), f(self.1, rhs), f(self.2, rhs))
@@ -848,7 +877,7 @@ pub struct Image<SPACE: 'static + ColorType + Clone + Copy + Send + Sync, const 
     pub data: Vec<Color<SPACE, GAMUT>>,
     pub size: (usize, usize),
 }
-
+type I<'a, S, const G: ColorGamut> = Iter<'a, Color<S, G>>;
 #[allow(dead_code)]
 impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Image<SPACE, GAMUT> {
     /// Return an empty Image
@@ -858,6 +887,7 @@ impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Ima
             size: (0, 0),
         }
     }
+
     /// Construct a new image with size
     pub fn new((width, height): (usize, usize)) -> Image<SPACE, GAMUT> {
         Image {
@@ -865,6 +895,7 @@ impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Ima
             size: (width, height),
         }
     }
+
     /// Construct a new image with a specified color
     pub fn new_with(
         (width, height): (usize, usize),
@@ -875,36 +906,157 @@ impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Ima
             size: (width, height),
         }
     }
+
     /// Construct an image from a vector of colors
     pub fn from_vec(size: (usize, usize), data: Vec<Color<SPACE, GAMUT>>) -> Image<SPACE, GAMUT> {
         Image { data, size }
     }
+
     /// Return the width of the image
     pub fn width(&self) -> usize {
         self.size.0
     }
+
     /// Return the height of the image
     pub fn height(&self) -> usize {
         self.size.1
     }
+
     /// Get the pixels by reference
     pub fn pixels(&self) -> &Vec<Color<SPACE, GAMUT>> {
         &self.data
     }
+
+    /// Get the pixels by reference as an iterator
+    pub fn pixels_iter(&self) -> I<SPACE, GAMUT> {
+        self.data.iter()
+    }
+
     /// Get the pixels as mutable
     pub fn pixels_mut(&mut self) -> &mut Vec<Color<SPACE, GAMUT>> {
         &mut self.data
     }
+
+    /// Get the pixels as a mutable iterator
+    pub fn pixels_iter_mut(&mut self) -> IterMut<Color<SPACE, GAMUT>> {
+        self.data.iter_mut()
+    }
+
+    /// iterate (&self, &image)
+    pub fn pixels_zip<'a>(
+        &'a self,
+        image: &'a Image<SPACE, GAMUT>,
+    ) -> Zip<I<SPACE, GAMUT>, I<SPACE, GAMUT>> {
+        self.pixels_iter().zip(image.pixels_iter())
+    }
+
+    /// iterate (&mut self, &image)
+    pub fn pixels_mut_zip<'a>(
+        &'a mut self,
+        image: &'a Image<SPACE, GAMUT>,
+    ) -> Zip<IterMut<Color<SPACE, GAMUT>>, I<SPACE, GAMUT>> {
+        self.pixels_iter_mut().zip(image.pixels_iter())
+    }
+
+    /// iterate (&self, &mut image)
+    pub fn pixels_zip_mut<'a>(
+        &'a self,
+        image: &'a mut Image<SPACE, GAMUT>,
+    ) -> Zip<I<SPACE, GAMUT>, IterMut<Color<SPACE, GAMUT>>> {
+        self.pixels_iter().zip(image.pixels_iter_mut())
+    }
+
+    /// iterate (&mut self, &mut image)
+    pub fn pixels_mut_zip_mut<'a>(
+        &'a mut self,
+        image: &'a mut Image<SPACE, GAMUT>,
+    ) -> Zip<IterMut<Color<SPACE, GAMUT>>, IterMut<Color<SPACE, GAMUT>>> {
+        self.pixels_iter_mut().zip(image.pixels_iter_mut())
+    }
+
+    /// Apply a function over all pixels
+    pub fn for_each_pixel<F>(&self, f: F)
+    where
+        F: Fn(&Color<SPACE, GAMUT>),
+    {
+        let _t = self.pixels_iter().for_each(f);
+    }
+
+    /// Apply a function over all pixels with mutability
+    pub fn for_each_pixel_mut<F>(&mut self, f: F)
+    where
+        F: FnMut(&mut Color<SPACE, GAMUT>),
+    {
+        let _t = self.pixels_iter_mut().for_each(f);
+    }
+
+    /// Map a function over pixels and return a Color
+    pub fn map_pixels<F>(&self, f: F) -> Map<Iter<'_, Color<SPACE, GAMUT>>, F>
+    where
+        F: Fn(&Color<SPACE, GAMUT>) -> Color<SPACE, GAMUT>,
+    {
+        self.pixels_iter().map(f)
+    }
+
+    /// Map a function over pixels and return an f64
+    pub fn map_f<F>(&self, f: F) -> Map<Iter<'_, Color<SPACE, GAMUT>>, F>
+    where
+        F: Fn(&Color<SPACE, GAMUT>) -> f64,
+    {
+        self.pixels_iter().map(f)
+    }
+
+    /// Map a function over pixels zipped with another image and return a Color
+    pub fn map_pixels_with<'a, F>(
+        &'a self,
+        image: &'a Image<SPACE, GAMUT>,
+        f: F,
+    ) -> Map<Zip<I<SPACE, GAMUT>, I<SPACE, GAMUT>>, F>
+    where
+        F: Fn((&Color<SPACE, GAMUT>, &Color<SPACE, GAMUT>)) -> Color<SPACE, GAMUT>,
+    {
+        self.pixels_zip(image).map(f)
+    }
+
+    /// Map a function over pixels and return a Color in a new space
+    pub fn map_pixels_to<NEWSPACE, F>(&self, f: F) -> Map<Iter<'_, Color<SPACE, GAMUT>>, F>
+    where
+        NEWSPACE: ColorType + FromColorType<SPACE> + Clone + Copy + Send + Sync,
+        F: Fn(&Color<SPACE, GAMUT>) -> Color<NEWSPACE, GAMUT>,
+    {
+        self.pixels_iter().map(f)
+    }
+
+    /// Map a function over pixels zipped with another image and return a Color in a new space
+    pub fn map_pixels_with_to<'a, NEWSPACE, F>(
+        &'a self,
+        image: &'a Image<SPACE, GAMUT>,
+        f: F,
+    ) -> Map<Zip<I<SPACE, GAMUT>, I<SPACE, GAMUT>>, F>
+    where
+        NEWSPACE: ColorType + FromColorType<SPACE> + Clone + Copy + Send + Sync,
+        F: Fn((&Color<SPACE, GAMUT>, &Color<SPACE, GAMUT>)) -> Color<NEWSPACE, GAMUT>,
+    {
+        self.pixels_zip(image).map(f)
+    }
+
+    /// Return a row as a slice
+    pub fn row(&self, n: usize) -> &[Color<SPACE, GAMUT>] {
+        let w = self.width();
+        &self.pixels()[(n * w)..(n + 1) * w]
+    }
+
     /// Return a specific channel of all colors as a Vec
     pub fn channel(&self, n: usize) -> Vec<f64> {
         match n {
-            0 => self.pixels().clone().iter().map(|x| x.0).collect(),
-            1 => self.pixels().clone().iter().map(|x| x.1).collect(),
-            2 => self.pixels().clone().iter().map(|x| x.2).collect(),
-            3 => self.pixels().clone().iter().map(|x| x.3).collect(),
-            _ => self.pixels().clone().iter().map(|x| x.0).collect(),
+            0 => self.map_f(|x| x.0).collect(),
+            1 => self.map_f(|x| x.1).collect(),
+            2 => self.map_f(|x| x.2).collect(),
+            3 => self.map_f(|x| x.3).collect(),
+            _ => self.map_f(|x| x.0).collect(),
         }
     }
+
     /// Return a vec of f64
     pub fn to_vec(&self) -> Vec<f64> {
         let mut vec: Vec<f64> = Vec::new();
@@ -913,26 +1065,30 @@ impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Ima
         }
         vec
     }
+
     /// Put a pixel at (x,y)
     pub fn put_pixel(&mut self, (x, y): (usize, usize), pixel: Color<SPACE, GAMUT>) {
         let w = self.width();
         self.pixels_mut()[x + (y * w)] = pixel;
     }
+
     /// Get the pixel at (x,y)
     pub fn get_pixel(&self, (x, y): (usize, usize)) -> Color<SPACE, GAMUT> {
         let w = self.width();
         self.pixels()[x + (y * w)]
     }
+
     /// Convert all colors in the image
     #[rustfmt::skip]
     pub fn convert<NEWSPACE: ColorType + FromColorType<SPACE> + Clone + Copy + Send + Sync>(&self) -> Image<NEWSPACE, GAMUT> {
         Image {
-            data: self.pixels().iter().map(
+            data: self.map_pixels_to::<NEWSPACE, _>(
                 |x| NEWSPACE::from_color(*x)
             ).collect::<Vec<Color<NEWSPACE, GAMUT>>>(),
             size: self.size,
         }
     }
+
     /// Return a region of the Image
     pub fn crop(&self, offset: (usize, usize), size: (usize, usize)) -> Image<SPACE, GAMUT> {
         let w = self.size.0;
@@ -950,6 +1106,7 @@ impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Ima
             size,
         }
     }
+
     /// Return a cropped region aligned
     pub fn crop_align(&self, mode: (Align, Align), size: (usize, usize)) -> Image<SPACE, GAMUT> {
         let offset = (
@@ -967,10 +1124,11 @@ impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Ima
         //
         self.crop(offset, size)
     }
-    // Return the min and max colors
+
+    /// Return the min and max colors
     pub fn range(&self) -> (Color<SPACE, GAMUT>, Color<SPACE, GAMUT>) {
         let (mut min, mut max) = ([100000.0; 4], [-100000.0; 4]);
-        for pixel in self.pixels().iter() {
+        for pixel in self.pixels_iter() {
             let ch = pixel.to_arr().0;
             for i in 0..4 {
                 if ch[i] < min[i] {
@@ -986,12 +1144,13 @@ impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Ima
             Color::<SPACE, GAMUT>::new([max[0], max[1], max[2], max[3]]),
         )
     }
-    // Return the min and max colors in a given color space
+
+    /// Return the min and max colors in a given color space
     pub fn range_in_space<NEWSPACE: ColorType + FromColorType<SPACE> + Clone + Copy>(
         &self,
     ) -> (Color<NEWSPACE, GAMUT>, Color<NEWSPACE, GAMUT>) {
         let (mut min, mut max) = ([100000.0; 4], [-100000.0; 4]);
-        for pixel in self.pixels().iter() {
+        for pixel in self.pixels_iter() {
             let ch = NEWSPACE::from_color(*pixel).to_arr().0;
             for i in 0..4 {
                 if ch[i] < min[i] {
@@ -1007,15 +1166,34 @@ impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Ima
             Color::<NEWSPACE, GAMUT>::new([max[0], max[1], max[2], max[3]]),
         )
     }
+
     /// The mean of all colors
     pub fn mean(&self) -> Color<SPACE, GAMUT> {
         let mut avg = Color::<SPACE, GAMUT>::new([0.0, 0.0, 0.0, 0.0]);
         let mut i = 0;
-        for color in self.pixels().iter() {
+        for color in self.pixels_iter() {
             i += 1;
             avg += *color;
         }
         avg / i as f64
+    }
+
+    /// Compute the mean of all colors for two images at once
+    pub fn mean_with(
+        &self,
+        image: &Image<SPACE, GAMUT>,
+    ) -> (Color<SPACE, GAMUT>, Color<SPACE, GAMUT>) {
+        let mut avg = (
+            Color::<SPACE, GAMUT>::new([0.0, 0.0, 0.0, 0.0]),
+            Color::<SPACE, GAMUT>::new([0.0, 0.0, 0.0, 0.0]),
+        );
+        let mut i = 0;
+        for color in self.pixels_zip(image) {
+            i += 1;
+            avg.0 += *color.0;
+            avg.1 += *color.1;
+        }
+        (avg.0 / i as f64, avg.1 / i as f64)
     }
 
     /// The mean of all colors in a given color space
@@ -1024,25 +1202,48 @@ impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Ima
     ) -> Color<NEWSPACE, GAMUT> {
         let mut avg = Color::<NEWSPACE, GAMUT>::new([0.0, 0.0, 0.0, 0.0]);
         let mut i = 0;
-        for color in self.pixels().iter() {
+        for color in self.pixels_iter() {
             i += 1;
             avg += NEWSPACE::from_color(*color);
         }
         avg / i as f64
     }
+
     /// Return the variance of color
     pub fn variance(&self) -> Color<SPACE, GAMUT> {
         let mean = self.mean();
 
         let mut v = Color::<SPACE, GAMUT>::new([0.0, 0.0, 0.0, 0.0]);
         let mut i = 0;
-        for color in self.pixels().iter() {
+        for color in self.pixels_iter() {
             i += 1;
             let diff = *color - mean;
             v += diff * diff;
         }
 
         v / i as f64
+    }
+
+    /// Return the variance of color in two images at once
+    pub fn variance_with(
+        &self,
+        image: &Image<SPACE, GAMUT>,
+    ) -> (Color<SPACE, GAMUT>, Color<SPACE, GAMUT>) {
+        let mean = self.mean_with(image);
+
+        let mut v = (
+            Color::<SPACE, GAMUT>::new([0.0, 0.0, 0.0, 0.0]),
+            Color::<SPACE, GAMUT>::new([0.0, 0.0, 0.0, 0.0]),
+        );
+        let mut i = 0;
+        for color in self.pixels_zip(image) {
+            i += 1;
+            let diff = (*color.0 - mean.0, *color.0 - mean.0);
+            v.0 += diff.0 * diff.0;
+            v.1 += diff.1 * diff.1;
+        }
+
+        (v.0 / i as f64, v.1 / i as f64)
     }
 
     /// Return the variance of color in a given color space
@@ -1053,7 +1254,7 @@ impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Ima
 
         let mut v = Color::<NEWSPACE, GAMUT>::new([0.0, 0.0, 0.0, 0.0]);
         let mut i = 0;
-        for color in self.pixels().iter() {
+        for color in self.pixels_iter() {
             i += 1;
             let diff = NEWSPACE::from_color(*color) - mean;
             v += diff * diff;
@@ -1061,6 +1262,7 @@ impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Ima
 
         v / i as f64
     }
+
     /// Return the covariance of color with another Image
     pub fn covariance(&self, image: &Image<SPACE, GAMUT>) -> Color<SPACE, GAMUT> {
         let mean1 = self.mean();
@@ -1068,7 +1270,7 @@ impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Ima
 
         let mut v = Color::<SPACE, GAMUT>::new([0.0, 0.0, 0.0, 0.0]);
         let mut i = 0;
-        for (color1, color2) in self.pixels().iter().zip(image.pixels().iter()) {
+        for (color1, color2) in self.pixels_iter().zip(image.pixels_iter()) {
             i += 1;
             v += (*color1 - mean1) * (*color2 - mean2);
         }
@@ -1089,7 +1291,7 @@ impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Ima
         let mut v = Color::<NEWSPACE, GAMUT>::new([0.0, 0.0, 0.0, 0.0]);
         let mut i = 0;
 
-        for (color1, color2) in self.pixels().iter().zip(image.pixels().iter()) {
+        for (color1, color2) in self.pixels_iter().zip(image.pixels_iter()) {
             i += 1;
             v += (NEWSPACE::from_color(*color1) - mean1) * (NEWSPACE::from_color(*color2) - mean2);
         }
@@ -1097,8 +1299,8 @@ impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Ima
         v / i as f64
     }
 
-    // Structural similarity index with another image
-    pub fn ssim(&self, image: Image<SPACE, GAMUT>) -> Color<CIELcha, GAMUT>
+    /// Structural similarity index with another image
+    pub fn ssim(&self, image: &Image<SPACE, GAMUT>) -> Color<CIELcha, GAMUT>
     where
         CIELcha: FromColorType<SPACE>,
     {
@@ -1122,21 +1324,24 @@ impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Ima
             / (((meanx * meanx) + (meany * meany) + c1) * (variancex + variancey + c2))
     }
 
-    // Structural similarity index with another image, in a specific color space
+    /// Structural similarity index with another image, in a specific color space
     pub fn ssim_in_space<NEWSPACE: ColorType>(
         &self,
-        image: Image<SPACE, GAMUT>,
+        image: &Image<SPACE, GAMUT>,
     ) -> Color<NEWSPACE, GAMUT>
     where
         NEWSPACE: FromColorType<SPACE>,
     {
-        let meanx = self.mean_in_space::<NEWSPACE>();
-        let meany = image.mean_in_space::<NEWSPACE>();
+        let self_space = self.convert::<NEWSPACE>();
+        let img_space = image.convert::<NEWSPACE>();
 
-        let variancex = self.variance_in_space::<NEWSPACE>();
-        let variancey = image.variance_in_space::<NEWSPACE>();
+        let meanx = self_space.mean();
+        let meany = img_space.mean();
 
-        let covariance = self.covariance_in_space::<NEWSPACE>(&image);
+        let variancex = self_space.variance();
+        let variancey = img_space.variance();
+
+        let covariance = self_space.covariance(&img_space);
 
         let (c1, c2) = (
             (0.01 * (2f64.powi(16) - 1.0)).powi(2),
@@ -1146,12 +1351,17 @@ impl<SPACE: ColorType + Clone + Copy + Send + Sync, const GAMUT: ColorGamut> Ima
         (((2.0 * meanx * meany) + c1) * ((covariance + c2) * 2.0))
             / (((meanx * meanx) + (meany * meany) + c1) * (variancex + variancey + c2))
     }
+}
 
-    // pub fn luminance_range(&self) -> (f64, f64) {}
-    // pub fn stdev() -> Color<SPACE, GAMUT> {}
-    // pub fn luminance() -> f64 {
-    //     0.0
-    // }
+impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> std::ops::Neg
+    for Image<SPACE, GAMUT>
+{
+    type Output = Image<SPACE, GAMUT>;
+    fn neg(self) -> Self::Output {
+        let mut new_img = self;
+        new_img.pixels_iter_mut().for_each(|x| *x = -*x);
+        new_img
+    }
 }
 
 impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> std::ops::Add<Image<SPACE, GAMUT>>
@@ -1159,13 +1369,8 @@ impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> std::ops::Add<Ima
 {
     type Output = Image<SPACE, GAMUT>;
     fn add(self, rhs: Image<SPACE, GAMUT>) -> Self::Output {
-        let mut new_img = Image {
-            data: self.pixels().clone(),
-            size: self.size,
-        };
-        for (pixel, rhs_px) in new_img.pixels_mut().iter_mut().zip(rhs.pixels().iter()) {
-            *pixel += *rhs_px;
-        }
+        let mut new_img = self;
+        new_img.pixels_mut_zip(&rhs).for_each(|x| *x.0 += *x.1);
         new_img
     }
 }
@@ -1175,13 +1380,8 @@ impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> std::ops::Sub<Ima
 {
     type Output = Image<SPACE, GAMUT>;
     fn sub(self, rhs: Image<SPACE, GAMUT>) -> Self::Output {
-        let mut new_img = Image {
-            data: self.pixels().clone(),
-            size: self.size,
-        };
-        for (pixel, rhs_px) in new_img.pixels_mut().iter_mut().zip(rhs.pixels().iter()) {
-            *pixel -= *rhs_px;
-        }
+        let mut new_img = self;
+        new_img.pixels_mut_zip(&rhs).for_each(|x| *x.0 -= *x.1);
         new_img
     }
 }
@@ -1191,13 +1391,8 @@ impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> std::ops::Mul<Ima
 {
     type Output = Image<SPACE, GAMUT>;
     fn mul(self, rhs: Image<SPACE, GAMUT>) -> Self::Output {
-        let mut new_img = Image {
-            data: self.pixels().clone(),
-            size: self.size,
-        };
-        for (pixel, rhs_px) in new_img.pixels_mut().iter_mut().zip(rhs.pixels().iter()) {
-            *pixel *= *rhs_px;
-        }
+        let mut new_img = self;
+        new_img.pixels_mut_zip(&rhs).for_each(|x| *x.0 *= *x.1);
         new_img
     }
 }
@@ -1207,32 +1402,51 @@ impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> std::ops::Div<Ima
 {
     type Output = Image<SPACE, GAMUT>;
     fn div(self, rhs: Image<SPACE, GAMUT>) -> Self::Output {
-        let mut new_img = Image {
-            data: self.pixels().clone(),
-            size: self.size,
-        };
-        for (pixel, rhs_px) in new_img.pixels_mut().iter_mut().zip(rhs.pixels().iter()) {
-            *pixel /= *rhs_px;
-        }
+        let mut new_img = self;
+        new_img.pixels_mut_zip(&rhs).for_each(|x| *x.0 /= *x.1);
         new_img
     }
 }
 
-///
-///
+impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut>
+    std::ops::AddAssign<Image<SPACE, GAMUT>> for Image<SPACE, GAMUT>
+{
+    fn add_assign(&mut self, rhs: Image<SPACE, GAMUT>) {
+        self.pixels_mut_zip(&rhs).for_each(|x| *x.0 += *x.1);
+    }
+}
+
+impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut>
+    std::ops::SubAssign<Image<SPACE, GAMUT>> for Image<SPACE, GAMUT>
+{
+    fn sub_assign(&mut self, rhs: Image<SPACE, GAMUT>) {
+        self.pixels_mut_zip(&rhs).for_each(|x| *x.0 -= *x.1);
+    }
+}
+
+impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut>
+    std::ops::MulAssign<Image<SPACE, GAMUT>> for Image<SPACE, GAMUT>
+{
+    fn mul_assign(&mut self, rhs: Image<SPACE, GAMUT>) {
+        self.pixels_mut_zip(&rhs).for_each(|x| *x.0 *= *x.1);
+    }
+}
+
+impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut>
+    std::ops::DivAssign<Image<SPACE, GAMUT>> for Image<SPACE, GAMUT>
+{
+    fn div_assign(&mut self, rhs: Image<SPACE, GAMUT>) {
+        self.pixels_mut_zip(&rhs).for_each(|x| *x.0 /= *x.1);
+    }
+}
 
 impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> std::ops::Add<Color<SPACE, GAMUT>>
     for Image<SPACE, GAMUT>
 {
     type Output = Image<SPACE, GAMUT>;
     fn add(self, rhs: Color<SPACE, GAMUT>) -> Self::Output {
-        let mut new_img = Image {
-            data: self.pixels().clone(),
-            size: self.size,
-        };
-        for pixel in new_img.pixels_mut().iter_mut() {
-            *pixel += rhs;
-        }
+        let mut new_img = self;
+        new_img.pixels_iter_mut().for_each(|x| *x += rhs);
         new_img
     }
 }
@@ -1242,13 +1456,8 @@ impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> std::ops::Sub<Col
 {
     type Output = Image<SPACE, GAMUT>;
     fn sub(self, rhs: Color<SPACE, GAMUT>) -> Self::Output {
-        let mut new_img = Image {
-            data: self.pixels().clone(),
-            size: self.size,
-        };
-        for pixel in new_img.pixels_mut().iter_mut() {
-            *pixel -= rhs;
-        }
+        let mut new_img = self;
+        new_img.pixels_iter_mut().for_each(|x| *x -= rhs);
         new_img
     }
 }
@@ -1258,13 +1467,8 @@ impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> std::ops::Mul<Col
 {
     type Output = Image<SPACE, GAMUT>;
     fn mul(self, rhs: Color<SPACE, GAMUT>) -> Self::Output {
-        let mut new_img = Image {
-            data: self.pixels().clone(),
-            size: self.size,
-        };
-        for pixel in new_img.pixels_mut().iter_mut() {
-            *pixel *= rhs;
-        }
+        let mut new_img = self;
+        new_img.pixels_iter_mut().for_each(|x| *x *= rhs);
         new_img
     }
 }
@@ -1274,32 +1478,51 @@ impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> std::ops::Div<Col
 {
     type Output = Image<SPACE, GAMUT>;
     fn div(self, rhs: Color<SPACE, GAMUT>) -> Self::Output {
-        let mut new_img = Image {
-            data: self.pixels().clone(),
-            size: self.size,
-        };
-        for pixel in new_img.pixels_mut().iter_mut() {
-            *pixel /= rhs;
-        }
+        let mut new_img = self;
+        new_img.pixels_iter_mut().for_each(|x| *x /= rhs);
         new_img
     }
 }
 
-///
-///
+impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut>
+    std::ops::AddAssign<Color<SPACE, GAMUT>> for Image<SPACE, GAMUT>
+{
+    fn add_assign(&mut self, rhs: Color<SPACE, GAMUT>) {
+        self.pixels_iter_mut().for_each(|x| *x += rhs);
+    }
+}
+
+impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut>
+    std::ops::SubAssign<Color<SPACE, GAMUT>> for Image<SPACE, GAMUT>
+{
+    fn sub_assign(&mut self, rhs: Color<SPACE, GAMUT>) {
+        self.pixels_iter_mut().for_each(|x| *x -= rhs);
+    }
+}
+
+impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut>
+    std::ops::MulAssign<Color<SPACE, GAMUT>> for Image<SPACE, GAMUT>
+{
+    fn mul_assign(&mut self, rhs: Color<SPACE, GAMUT>) {
+        self.pixels_iter_mut().for_each(|x| *x *= rhs);
+    }
+}
+
+impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut>
+    std::ops::DivAssign<Color<SPACE, GAMUT>> for Image<SPACE, GAMUT>
+{
+    fn div_assign(&mut self, rhs: Color<SPACE, GAMUT>) {
+        self.pixels_iter_mut().for_each(|x| *x /= rhs);
+    }
+}
 
 impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> std::ops::Mul<f64>
     for Image<SPACE, GAMUT>
 {
     type Output = Image<SPACE, GAMUT>;
     fn mul(self, rhs: f64) -> Self::Output {
-        let mut new_img = Image {
-            data: self.pixels().clone(),
-            size: self.size,
-        };
-        for pixel in new_img.pixels_mut().iter_mut() {
-            *pixel *= rhs;
-        }
+        let mut new_img = self;
+        new_img.pixels_iter_mut().for_each(|x| *x *= rhs);
         new_img
     }
 }
@@ -1309,14 +1532,25 @@ impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> std::ops::Div<f64
 {
     type Output = Image<SPACE, GAMUT>;
     fn div(self, rhs: f64) -> Self::Output {
-        let mut new_img = Image {
-            data: self.pixels().clone(),
-            size: self.size,
-        };
-        for pixel in new_img.pixels_mut().iter_mut() {
-            *pixel /= rhs;
-        }
+        let mut new_img = self;
+        new_img.pixels_iter_mut().for_each(|x| *x /= rhs);
         new_img
+    }
+}
+
+impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> std::ops::MulAssign<f64>
+    for Image<SPACE, GAMUT>
+{
+    fn mul_assign(&mut self, rhs: f64) {
+        self.pixels_iter_mut().for_each(|x| *x *= rhs);
+    }
+}
+
+impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> std::ops::DivAssign<f64>
+    for Image<SPACE, GAMUT>
+{
+    fn div_assign(&mut self, rhs: f64) {
+        self.pixels_iter_mut().for_each(|x| *x /= rhs);
     }
 }
 
@@ -1325,11 +1559,8 @@ impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> std::ops::Div<Ima
 {
     type Output = Image<SPACE, GAMUT>;
     fn div(self, rhs: Image<SPACE, GAMUT>) -> Self::Output {
-        let mut new_img = Image {
-            data: rhs.pixels().clone(),
-            size: rhs.size,
-        };
-        for pixel in new_img.pixels_mut().iter_mut() {
+        let mut new_img = rhs;
+        for pixel in new_img.pixels_iter_mut() {
             *pixel *= 1.0 / self;
         }
         new_img
@@ -1341,18 +1572,13 @@ impl<SPACE: ColorType + Clone + Copy, const GAMUT: ColorGamut> std::ops::Mul<Ima
 {
     type Output = Image<SPACE, GAMUT>;
     fn mul(self, rhs: Image<SPACE, GAMUT>) -> Self::Output {
-        let mut new_img = Image {
-            data: rhs.pixels().clone(),
-            size: rhs.size,
-        };
-        for pixel in new_img.pixels_mut().iter_mut() {
+        let mut new_img = rhs;
+        for pixel in new_img.pixels_iter_mut() {
             *pixel *= self;
         }
         new_img
     }
 }
-
-//
 
 /// Align is likely to change wording during development
 ///
