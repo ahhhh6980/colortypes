@@ -1007,7 +1007,7 @@ impl<
     }
 
     /// Construct a new image with a specified color
-    pub fn newith(
+    pub fn new_with(
         (width, height): (usize, usize),
         fill: Color<SPACE, WHITE>,
     ) -> Image<SPACE, WHITE> {
