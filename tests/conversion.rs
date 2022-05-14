@@ -1,18 +1,20 @@
-use colortypes::{Ycbcr, CIELAB, SRGB};
+use colortypes::{Ycbcr, CIELAB, D65, REC709};
 // TO-DO: https://doc.rust-lang.org/book/ch11-03-test-organization.html
-use colortypes::colors::{CIELaba, CIELcha, Hsva, Rgba, Srgba, Xyza};
+use colortypes::colors::{CIELab, CIELch, Hsv, Rgb, Srgb, Xyz};
 use colortypes::types::FromColorType;
-
+/*
+ADOBE_RGB
+*/
 extern crate rand;
 use rand::Rng;
 macro_rules! test_conversion_and_back {
-    ($from:ident<$gamut:ident>, $to:ident<$gamut_to:ident>) => {
+    ($from:ident<$white:ident, $gamut:ident>, $to:ident<$gamut_to:ident>) => {
         paste::item! {
             #[test]
             #[allow(non_snake_case)]
             fn [< convert_ $from _ $to _ $from >] () {
                 let mut rng = rand::thread_rng();
-                let color = <$from>::new::<{$gamut}>([
+                let color = <$from>::new::<$white>([
                     rng.gen_range(0.0..=1.0),
                     rng.gen_range(0.0..=1.0),
                     rng.gen_range(0.0..=1.0),
@@ -32,7 +34,7 @@ macro_rules! test_conversion_and_back {
             #[allow(non_snake_case)]
             fn [< convert_ $to _ $from _ $to >] () {
                 let mut rng = rand::thread_rng();
-                let color = <$to>::new::<{$gamut_to}>([
+                let color = <$to>::new::<$white>([
                     rng.gen_range(0.0..=1.0),
                     rng.gen_range(0.0..=1.0),
                     rng.gen_range(0.0..=1.0),
@@ -52,10 +54,12 @@ macro_rules! test_conversion_and_back {
     };
 }
 
-test_conversion_and_back!(Rgba<SRGB>, Xyza<SRGB>);
-test_conversion_and_back!(Rgba<SRGB>, Srgba<SRGB>);
-test_conversion_and_back!(Rgba<SRGB>, CIELaba<CIELAB>);
-test_conversion_and_back!(Rgba<SRGB>, CIELcha<CIELAB>);
+test_conversion_and_back!(Rgb<D65, SRGB>, Xyz<SRGB>);
+test_conversion_and_back!(Rgb<D65, SRGB>, Srgb<SRGB>);
+test_conversion_and_back!(Rgb<D65, SRGB>, CIELab<CIELAB>);
+test_conversion_and_back!(Rgb<D65, SRGB>, CIELch<CIELAB>);
 // Theres something weird about my Hsva conversion, and this may not be accurate
-test_conversion_and_back!(Rgba<SRGB>, Hsva<SRGB>);
-test_conversion_and_back!(Rgba<SRGB>, Ycbcr<SRGB>);
+test_conversion_and_back!(Rgb<D65, SRGB>, Hsv<SRGB>);
+test_conversion_and_back!(Rgb<D65, SRGB>, Ycbcr<SRGB>);
+test_conversion_and_back!(CIELab<D65, CIELAB>, CIELch<CIELAB>);
+test_conversion_and_back!(CIELab<D65, CIELAB>, Xyz<SRGB>);
