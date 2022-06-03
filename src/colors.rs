@@ -129,6 +129,28 @@ macro_rules! impl_colorspace {
 
 pub(crate) use impl_colorspace;
 
+// pub trait FromWhiteType<const WHITE: White>: WhiteType {
+//     fn from_white<const FWHITE: White, SPACE: ColorType>(
+//         _: Color<SPACE, FWHITE>,
+//     ) -> Color<SPACE, WHITE>;
+// }
+
+// #[macro_export]
+// macro_rules! impl_white_conversion {
+//     ($($from:ident : $to:ident),*) => {
+//         $(
+//             impl FromWhiteType<$from> for $to {
+//                 fn from_white<const SW: White, const DW: White, SPACE: ColorType>(
+//                     color: Color<SPACE, SW>,
+//                 ) {
+//                     DW::adapt_chroma_from_xyz(color)
+//                 }
+//             }
+//         )*
+//     };
+// }
+// pub(crate) use impl_white_conversion;
+
 /// Implement the conversion from one type to another
 #[macro_export]
 macro_rules! impl_conversion {
@@ -137,12 +159,18 @@ macro_rules! impl_conversion {
             fn from_color<const WHITE: White>(
                 $color_name: Color<$from, WHITE>,
             ) -> Color<$to, WHITE> {
+                // let $color_name = match FROMWHITE {
+                //     WHITE => $color_name,
+                //     _ => $color_name,
+                // };
                 $method
             }
         }
     };
 }
 pub(crate) use impl_conversion;
+
+// impl_white_conversion!(D65: D50, D50: D65, D65: E, D50: E, E: D50, E: D65);
 
 impl_colorspace! {
     Rgb<ADOBE_RGB&D65>
@@ -171,38 +199,6 @@ impl_colorspace! {
 
     Ycbcr<REC709&D65>
         [0.0..1.0,   0.0..1.0, 0.0..1.0]
-}
-
-fn compute_conversion_mat<const FROM: White, const TO: White>() -> Mat3 {
-    let m = Mat3(
-        Col3(0.8951, 0.2664, -0.1614),
-        Col3(-0.7502, 1.7135, 0.0367),
-        Col3(0.0389, -0.0685, 1.0296),
-    );
-    let mi = Mat3(
-        Col3(0.9869929, -0.1470543, 0.1599627),
-        Col3(0.4323053, 0.5183603, 0.0492912),
-        Col3(-0.0085287, 0.0400428, 0.9684867),
-    );
-    let xyy_white = FROM.tristimulus().to_arr();
-    let w_s = [
-        (xyy_white[0] * xyy_white[2]) * xyy_white[1].recip(),
-        xyy_white[2],
-        ((1.0 - xyy_white[0] - xyy_white[1]) * xyy_white[2]) * xyy_white[1].recip(),
-    ];
-    let xyy_white = TO.tristimulus().to_arr();
-    let w_d = [
-        (xyy_white[0] * xyy_white[2]) * xyy_white[1].recip(),
-        xyy_white[2],
-        ((1.0 - xyy_white[0] - xyy_white[1]) * xyy_white[2]) * xyy_white[1].recip(),
-    ];
-    let Col3(ps, ys, bs) = m * Col3(w_s[0], w_s[1], w_s[2]);
-    let Col3(pd, yd, bd) = m * Col3(w_d[0], w_d[1], w_d[2]);
-    (mi * Mat3(
-        Col3(pd / ps, 0.0, 0.0),
-        Col3(0.0, yd / ys, 0.0),
-        Col3(0.0, 0.0, bd / bs),
-    )) * m
 }
 
 impl_conversion!(|color: Rgb| -> Srgb {
@@ -288,7 +284,7 @@ impl_conversion!(|color: Rgb| -> Hsv {
         }
     }
     let s = if v != 0.0 { c / v } else { 0.0f64 };
-    Color::new([h / 360.0, s, v, color.3])
+    Color::new([h, s, v, color.3])
 });
 
 impl_conversion!(|color: Hsv| -> Rgb {
@@ -298,9 +294,9 @@ impl_conversion!(|color: Hsv| -> Rgb {
         v - (v * s * (0.0f64).max((k).min((4.0 - k).min(1.0))))
     }
     Color::new([
-        f(color.0 * 360.0, color.1, color.2, 5.0),
-        f(color.0 * 360.0, color.1, color.2, 3.0),
-        f(color.0 * 360.0, color.1, color.2, 1.0),
+        f(color.0, color.1, color.2, 5.0),
+        f(color.0, color.1, color.2, 3.0),
+        f(color.0, color.1, color.2, 1.0),
         color.3,
     ])
 });
@@ -308,10 +304,92 @@ impl_conversion!(|color: Hsv| -> Rgb {
 impl_conversion!(|color: Rgb| -> Xyz {
     let f = REC709.transfer_fn_inv;
     let new_ch = REC709.conversion * Col3(f(color.0), f(color.1), f(color.2));
-    Color::new([new_ch.0, new_ch.1, new_ch.2, color.3])
+    Xyz::new([new_ch.0, new_ch.1, new_ch.2, color.3])
+    // match WHITE {
+    //     D65 => Xyz::new([new_ch.0, new_ch.1, new_ch.2, color.3]),
+    //     _ => {
+    //         let m = Mat3(
+    //             Col3(0.8951, 0.2664, -0.1614),
+    //             Col3(-0.7502, 1.7135, 0.0367),
+    //             Col3(0.0389, -0.0685, 1.0296),
+    //         );
+    //         let mi = Mat3(
+    //             Col3(0.9869929, -0.1470543, 0.1599627),
+    //             Col3(0.4323053, 0.5183603, 0.0492912),
+    //             Col3(-0.0085287, 0.0400428, 0.9684867),
+    //         );
+    //         let Col3(ps, ys, bs) = m * {
+    //             let xyy = D65.tristimulus();
+    //             let [x, y, z] = [
+    //                 (xyy.0 * xyy.2) * xyy.1.recip(),
+    //                 xyy.2,
+    //                 ((1.0 - xyy.0 - xyy.1) * xyy.2) * xyy.1.recip(),
+    //             ];
+    //             Col3(x, y, z)
+    //         };
+    //         let Col3(pd, yd, bd) = m * {
+    //             let xyy = WHITE.tristimulus();
+    //             let [x, y, z] = [
+    //                 (xyy.0 * xyy.2) * xyy.1.recip(),
+    //                 xyy.2,
+    //                 ((1.0 - xyy.0 - xyy.1) * xyy.2) * xyy.1.recip(),
+    //             ];
+    //             Col3(x, y, z)
+    //         };
+    //         let adapt_mat =
+    //             (mi * Mat3(
+    //                 Col3(pd / ps, 0.0, 0.0),
+    //                 Col3(0.0, yd / ys, 0.0),
+    //                 Col3(0.0, 0.0, bd / bs),
+    //             )) * m;
+    //         let Col3(x, y, z) = adapt_mat * new_ch;
+    //         Xyz::new([x, y, z, color.3])
+    //     }
+    // }
 });
 impl_conversion!(|color: Xyz| -> Rgb {
     let f = REC709.transfer_fn;
+    // let color = match WHITE {
+    //     D65 => color,
+    //     _ => {
+    //         let m = Mat3(
+    //             Col3(0.8951, 0.2664, -0.1614),
+    //             Col3(-0.7502, 1.7135, 0.0367),
+    //             Col3(0.0389, -0.0685, 1.0296),
+    //         );
+    //         let mi = Mat3(
+    //             Col3(0.9869929, -0.1470543, 0.1599627),
+    //             Col3(0.4323053, 0.5183603, 0.0492912),
+    //             Col3(-0.0085287, 0.0400428, 0.9684867),
+    //         );
+    //         let Col3(ps, ys, bs) = m * {
+    //             let xyy = WHITE.tristimulus();
+    //             let [x, y, z] = [
+    //                 (xyy.0 * xyy.2) * xyy.1.recip(),
+    //                 xyy.2,
+    //                 ((1.0 - xyy.0 - xyy.1) * xyy.2) * xyy.1.recip(),
+    //             ];
+    //             Col3(x, y, z)
+    //         };
+    //         let Col3(pd, yd, bd) = m * {
+    //             let xyy = D65.tristimulus();
+    //             let [x, y, z] = [
+    //                 (xyy.0 * xyy.2) * xyy.1.recip(),
+    //                 xyy.2,
+    //                 ((1.0 - xyy.0 - xyy.1) * xyy.2) * xyy.1.recip(),
+    //             ];
+    //             Col3(x, y, z)
+    //         };
+    //         let adapt_mat =
+    //             (mi * Mat3(
+    //                 Col3(pd / ps, 0.0, 0.0),
+    //                 Col3(0.0, yd / ys, 0.0),
+    //                 Col3(0.0, 0.0, bd / bs),
+    //             )) * m;
+    //         let Col3(x, y, z) = adapt_mat * Col3(color.0, color.1, color.2);
+    //         Xyz::new([x, y, z, color.3])
+    //     }
+    // };
     let new_ch = REC709.conversion.inverse() * Col3(color.0, color.1, color.2);
     Color::new([f(new_ch.0), f(new_ch.1), f(new_ch.2), color.3])
 });
@@ -320,18 +398,18 @@ impl_conversion!(|color: Srgb| -> Xyz {
     Color::new([new_ch.0, new_ch.1, new_ch.2, color.3])
 });
 impl_conversion!(|color: Xyz| -> Srgb {
-    let new_ch = REC709.conversion.inverse() * Col3(color.0, color.1, color.2);
+    let new_ch = REC709.conversion * Col3(color.0, color.1, color.2);
     Color::new([new_ch.0, new_ch.1, new_ch.2, color.3])
 });
 impl_conversion!(|color: Xyz| -> Yxy {
     let s = color.0 + color.1 + color.2;
-    Color::new([color.0 * s.recip(), color.1 * s.recip(), color.1, color.3])
+    Color::new([color.1, color.0 * s.recip(), color.1 * s.recip(), color.3])
 });
 impl_conversion!(|color: Yxy| -> Xyz {
     Color::new([
-        (color.0 * color.2) * color.1.recip(),
-        color.2,
-        ((1.0 - color.0 - color.1) * color.2) * color.1.recip(),
+        (color.1 * color.0) * color.2.recip(),
+        color.0,
+        ((1.0 - color.1 - color.2) * color.0) * color.2.recip(),
         color.3,
     ])
 });
@@ -345,12 +423,21 @@ impl_conversion!(|color: Xyz| -> CIELab {
             (((24389.0 * 27.0f64.recip()) * v) + 16.0) * 116.0f64.recip()
         }
     }
-    let Col3(wx, wy, wz) = WHITE.tristimulus();
+    let (wx, wy, wz) = {
+        let xyy = WHITE.tristimulus();
+        (
+            (xyy.0 * xyy.2) * xyy.1.recip(),
+            xyy.2,
+            ((1.0 - xyy.0 - xyy.1) * xyy.2) * xyy.1.recip(),
+        )
+    };
+
     let (fx, fy, fz) = (
         f(color.0 * wx.recip()),
         f(color.1 * wy.recip()),
         f(color.2 * wz.recip()),
     );
+
     Color::new([
         (116.0 * fy) - 16.0,
         500.0 * (fx - fy),
@@ -366,16 +453,27 @@ impl_conversion!(|color: CIELab| -> Xyz {
             ((116.0 * v) - 16.0) * (27.0 * 24389.0f64.recip())
         }
     }
+
     let fy = (color.0 + 16.0) * 116.0f64.recip();
     let fz = fy - (color.2 * 0.005);
     let fx = (color.1 * 0.002) + fy;
+
     let y = if color.0 > 0.008856 * (24389.0 * 27.0f64.recip()) {
         ((color.0 + 16.0) * 116.0f64.recip()).powi(3)
     } else {
         color.0 * (27.0 * 24389.0f64.recip())
     };
-    let Col3(wx, wy, wz) = WHITE.tristimulus();
-    Color::new([wx * f(fx), wy * (y), wz * f(fz), color.3])
+
+    let (wx, wy, wz) = {
+        let xyy = WHITE.tristimulus();
+        (
+            (xyy.0 * xyy.2) * xyy.1.recip(),
+            xyy.2,
+            ((1.0 - xyy.0 - xyy.1) * xyy.2) * xyy.1.recip(),
+        )
+    };
+
+    Color::<Xyz, WHITE>::new([wx * f(fx), wy * (y), wz * f(fz), color.3])
 });
 impl_conversion!(|color: CIELab| -> Rgb { Rgb::from_color(Xyz::from_color(color)) });
 impl_conversion!(|color: Rgb| -> CIELab { CIELab::from_color(Xyz::from_color(color)) });
