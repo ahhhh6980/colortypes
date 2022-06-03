@@ -1,6 +1,6 @@
-use std::{fmt, marker::PhantomData, slice::Iter, num::FpCategory};
+use std::{fmt, marker::PhantomData, num::FpCategory};
 
-use crate::{colors::CIELab, Xyz, REC709};
+use crate::{colors::CIELab, Xyz, Yxy};
 
 // #[derive(Clone, Debug, PartialEq, Eq, PartialOrd)]
 // pub struct Intent {
@@ -8,6 +8,10 @@ use crate::{colors::CIELab, Xyz, REC709};
 // }
 
 // const PERCEPTUAL: Intent = Intent;
+
+pub trait WhiteType:  'static + Copy + Send + Sync {
+
+}
 
 pub trait ColorType: 'static + Copy + Send + Sync {
     fn gamut() -> &'static ColorGamut;
@@ -26,6 +30,13 @@ where
     where
         Self: ColorType + std::marker::Sized + Clone + Copy + Send + Sync;
 }
+
+// pub trait FromWhiteType<const DW: White>: WhiteType
+// {
+//     fn from_white<const SW: White, SPACE: ColorType>(
+//         _: Color<SPACE, SW>,
+//     ) -> Color<SPACE, DW>;
+// }
 
 // pub trait FromColorGamut: ColorType {
 //     fn from_color<SPACE: ColorType, const WHITE: White>(
@@ -89,12 +100,43 @@ macro_rules! impl_float_ops_color {
         pub fn [<$name_3_arg:snake _color>] (&self, rhs: Color<SPACE,  WHITE,>, rhs2: Color<SPACE, WHITE>) -> Color<SPACE,  WHITE,> {
             apply_ops_color!(($name_3_arg),(self, rhs, rhs2))
         }
+        pub fn [<$name_3_arg:snake _colf>] (&self, rhs: Color<SPACE,  WHITE,>, rhs2: f64) -> Color<SPACE,  WHITE,> {
+            Color::<SPACE, WHITE>::new(
+                [
+                    f64::[<$name_3_arg>](self.0, rhs.0, rhs2),
+                    f64::[<$name_3_arg>](self.1, rhs.1, rhs2),
+                    f64::[<$name_3_arg>](self.2, rhs.2, rhs2),
+                    f64::[<$name_3_arg>](self.3, rhs.3, rhs2),
+                ]
+            )
+        }
+        pub fn [<$name_3_arg:snake _fcol>] (&self, rhs: f64, rhs2: Color<SPACE,  WHITE,>) -> Color<SPACE,  WHITE,> {
+            Color::<SPACE, WHITE>::new(
+                [
+                    f64::[<$name_3_arg>](self.0, rhs, rhs2.0),
+                    f64::[<$name_3_arg>](self.1, rhs, rhs2.1),
+                    f64::[<$name_3_arg>](self.2, rhs, rhs2.2),
+                    f64::[<$name_3_arg>](self.3, rhs, rhs2.3),
+                ]
+            )
+        }
+        pub fn [<$name_3_arg:snake>] (&self, rhs: f64, rhs2: f64) -> Color<SPACE,  WHITE,> {
+            Color::<SPACE, WHITE>::new(
+                [
+                    f64::[<$name_3_arg>](self.0, rhs, rhs2),
+                    f64::[<$name_3_arg>](self.1, rhs, rhs2),
+                    f64::[<$name_3_arg>](self.2, rhs, rhs2),
+                    f64::[<$name_3_arg>](self.3, rhs, rhs2),
+                ]
+            )
+        }
         )*
     }
     };
 }
 
 macro_rules! apply_ops_color {
+
     (($name_arg:ident),($($name:ident),*) ) => {
         paste::item! {
             Color::<SPACE, WHITE>::new(
@@ -195,52 +237,6 @@ impl<
         (self * f) + (color * (1.0 - f))
     }
 
-    /// Adapt to a new white point
-    ///
-    /// not well tested
-    ///
-    /// <http://www.brucelindbloom.com/index.html?Eqn_ChromAdapt.html>
-    #[allow(dead_code, unused_variables)]
-    pub fn adapt_chroma<const NEWWHITE: White>(self) -> Color<SPACE, NEWWHITE>
-    where
-        Xyz: FromColorType<SPACE> + ~const ColorType,
-        SPACE: FromColorType<Xyz> + ~const ColorType,
-    {
-        let xyz_color = Xyz::from_color(self);
-        let m = Mat3(
-            Col3(0.8951, 0.2664, -0.1614),
-            Col3(-0.7502, 1.7135, 0.0367),
-            Col3(0.0389, -0.0685, 1.0296),
-        );
-        let mi = Mat3(
-            Col3(0.9869929, -0.1470543, 0.1599627),
-            Col3(0.4323053, 0.5183603, 0.0492912),
-            Col3(-0.0085287, 0.0400428, 0.9684867),
-        );
-        let xyy_white = WHITE.tristimulus().to_arr();
-        let w_s = [
-            (xyy_white[0] * xyy_white[2]) * xyy_white[1].recip(),
-            xyy_white[2],
-            ((1.0 - xyy_white[0] - xyy_white[1]) * xyy_white[2]) * xyy_white[1].recip(),
-        ];
-        let xyy_white = NEWWHITE.tristimulus().to_arr();
-        let w_d = [
-            (xyy_white[0] * xyy_white[2]) * xyy_white[1].recip(),
-            xyy_white[2],
-            ((1.0 - xyy_white[0] - xyy_white[1]) * xyy_white[2]) * xyy_white[1].recip(),
-        ];
-        let Col3(ps, ys, bs) = m * Col3(w_s[0], w_s[1], w_s[2]);
-        let Col3(pd, yd, bd) = m * Col3(w_d[0], w_d[1], w_d[2]);
-        let adapt_mat =
-            (mi * Mat3(
-                Col3(pd / ps, 0.0, 0.0),
-                Col3(0.0, yd / ys, 0.0),
-                Col3(0.0, 0.0, bd / bs),
-            )) * m;
-        let Col3(x, y, z) = adapt_mat * Col3(xyz_color.0, xyz_color.1, xyz_color.2);
-        SPACE::from_color(Xyz::new([x, y, z, self.3]))
-    }
-
     /// Color difference for acceptability
     pub fn delta_e_a(self, color: Color<SPACE, WHITE>) -> f64
     where
@@ -322,7 +318,7 @@ impl<
         ]
     }
 
-    pub fn clamp_to_gamut(&self) -> Self{
+    pub fn clamp_to_gamut(&self) -> Self {
         let ranges = SPACE::range();
         Color::new(
             [
@@ -596,35 +592,88 @@ pub struct White {
 
 impl White {
     /// Return the tristimulus (xyY) value
-    #[inline]
+    #[inline(always)]
     pub fn tristimulus(&self) -> Col3 {
         (self.tristimulus)()
+    }
+
+    /// Adapt to a new white point
+    ///
+    /// not well tested
+    ///
+    /// <http://www.brucelindbloom.com/index.html?Eqn_ChromAdapt.html>
+    /*
+    where
+        Xyz: FromColorType<SPACE> + ~const ColorType,
+        SPACE: FromColorType<Xyz> + ~const ColorType,
+    {
+        let xyz_color = Xyz::from_color(color);
+    */
+    #[allow(dead_code, unused_variables)]
+    pub fn adapt_chroma_from_xyz<const SW: White, const DW: White>(self, color: Color<Xyz, SW>) -> Color<Xyz, DW>
+    {
+        let m = Mat3(
+            Col3(0.8951, 0.2664, -0.1614),
+            Col3(-0.7502, 1.7135, 0.0367),
+            Col3(0.0389, -0.0685, 1.0296),
+        );
+        let mi = Mat3(
+            Col3(0.9869929, -0.1470543, 0.1599627),
+            Col3(0.4323053, 0.5183603, 0.0492912),
+            Col3(-0.0085287, 0.0400428, 0.9684867),
+        );
+        let Col3(ps, ys, bs) = m * {
+            let xyy = SW.tristimulus();
+            let [x,y,z] = [
+                (xyy.0 * xyy.2) * xyy.1.recip(),
+                xyy.2,
+                ((1.0 - xyy.0 - xyy.1) * xyy.2) * xyy.1.recip(),
+            ];
+            Col3(x,y,z)
+        };
+        let Col3(pd, yd, bd) = m * {
+            let xyy = DW.tristimulus();
+            let [x,y,z] = [
+                (xyy.0 * xyy.2) * xyy.1.recip(),
+                xyy.2,
+                ((1.0 - xyy.0 - xyy.1) * xyy.2) * xyy.1.recip(),
+            ];
+            Col3(x,y,z)
+        };
+        let adapt_mat =
+            (mi * Mat3(
+                Col3(pd / ps, 0.0, 0.0),
+                Col3(0.0, yd / ys, 0.0),
+                Col3(0.0, 0.0, bd / bs),
+            )) * m;
+        let Col3(x, y, z) = adapt_mat * Col3(color.0, color.1, color.2);
+        Xyz::new([x, y, z, color.3])
+    }
+    pub fn adapt_chroma<SPACE: ColorType, const SW: White, const DW: White>(self, color: Color<SPACE, SW>) -> Color<SPACE, DW>
+    where
+        Xyz: FromColorType<SPACE> + ~const ColorType,
+        SPACE: FromColorType<Xyz> + ~const ColorType,
+    {
+        SPACE::from_color(self.adapt_chroma_from_xyz::<SW,DW>(Xyz::from_color(color)))
     }
 }
 
 /// Standard White Point D65
 #[allow(unused)]
 pub const D65: White = White {
-    tristimulus: || Col3(0.95047, 1.0, 1.08883),
+    tristimulus: || Col3(0.312727, 0.329023, 1.0),
 };
 
 /// Standard White Point D50
 #[allow(unused)]
 pub const D50: White = White {
-    tristimulus: || Col3(0.96422, 1.0, 0.82521),
+    tristimulus: || Col3(0.34567, 0.35850, 1.0),
 };
 
 /// Standard White Point E
 #[allow(unused)]
 pub const E: White = White {
-    tristimulus: || {
-        let white = t_to_xy(5455.0);
-        Col3(
-            white[0] * white[1].recip(),
-            1.0,
-            (1.0 - white[0] - white[1]) * white[1].recip(),
-        )
-    },
+    tristimulus: || Col3(1.0 / 3.0, 1.0 / 3.0, 1.0)
 };
 
 /// Convert a color temperature into xy chromaticity coordinates
@@ -698,7 +747,8 @@ impl ColorGamut {
     /// <https://mina86.com/2019/srgb-xyz-matrix/>
     ///
     /// <http://www.brucelindbloom.com/index.html?WorkingSpaceInfo.html#Specifications>
-    pub fn custom_system_matrix(&self, t: f64) -> Mat3 {
+    #[inline(always)]
+    pub fn custom_system_matrix_exact(&self, t: f64) -> Mat3 {
         let s = self.primaries_xyy();
 
         // Reference whitepoint tristimulus
@@ -708,6 +758,36 @@ impl ColorGamut {
                 white[0] * white[1].recip(),
                 1.0,
                 (1.0 - white[0] - white[1]) * white[1].recip(),
+            )
+        };
+        let m = Mat3(
+            s[0].div(s[1]),
+            Col3(1.0, 1.0, 1.0),
+            ((s[0]).over(|x| 1.0 - x) - s[1]).div(s[1]),
+        );
+        // Our computed RGB -> XYZ matrix :D
+        m.over_columns(m.inverse() * ref_white, |a, b| a.mult(b))
+    }
+    #[inline(always)]
+    pub fn custom_system_matrix<const SW: White, const DW: White>(&self) -> Mat3 {
+        let s = *self.primaries_xyy();
+        let s = [
+            DW.adapt_chroma::<_, SW, DW>(Yxy::new::<SW>([s[0].2, s[0].0, s[0].1, 1.0])),
+            DW.adapt_chroma::<_, SW, DW>(Yxy::new::<SW>([s[1].2, s[1].0, s[1].1, 1.0])),
+            DW.adapt_chroma::<_, SW, DW>(Yxy::new::<SW>([s[2].2, s[2].0, s[2].1, 1.0]))
+            ];
+        let s = [
+            Col3(s[0].1,s[0].2,s[0].0),
+            Col3(s[1].1,s[1].2,s[1].0),
+            Col3(s[2].1,s[2].2,s[2].0),
+        ];
+        // Reference whitepoint tristimulus
+        let ref_white = {
+            let Col3(x,y,_) = DW.tristimulus();
+            Col3(
+                x * y.recip(),
+                1.0,
+                (1.0 - x - y) * y.recip(),
             )
         };
         let m = Mat3(
