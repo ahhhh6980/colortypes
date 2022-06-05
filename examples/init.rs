@@ -24,14 +24,26 @@ fn main() {
     let color2 = CIELch::from_color(color);
     println!("->   LCH {}", color2);
 
+    let lab = CIELab::new::<D65>([50.0, 74.0, 28.0, 1.0]);
     println! {"LAB: {}", CIELab::new::<D65>([50.0, 74.0, 28.0, 1.0])};
-    let color2 = CIELab::from_color(color);
-    println!("->   LAB {}", color2);
-    let color2 = Xyz::from_color(color);
+    let color2 = Rgb::from_color(lab);
+    println!("->   RGB {}", color2);
+    let color2 = Xyz::from_color(lab);
     println!("->   XYZ {}", color2);
-    let color2 = Yxy::from_color(color);
+    let color2 = Yxy::from_color(Xyz::from_color(lab));
     println!("->   Yxy {}", color2);
-    let color2 = CIELch::from_color(color);
+    let color2 = CIELch::from_color(lab);
+    println!("->   LCH {}", color2);
+
+    let xyz = Xyz::new::<D65>([0.52, 0.191, 0.32, 1.0]);
+    println! {"XYZ: {}", xyz};
+    let color2 = Rgb::from_color(xyz);
+    println!("->   RGB {}", color2);
+    let color2 = CIELab::from_color(xyz);
+    println!("->   CIELab {}", color2);
+    let color2 = Yxy::from_color(xyz);
+    println!("->   Yxy {}", color2);
+    let color2 = CIELch::from_color(CIELab::from_color(xyz));
     println!("->   LCH {}", color2);
 
     // let color2 = Hsv::from_color(color);
