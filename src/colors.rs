@@ -349,47 +349,6 @@ impl_conversion!(|color: Rgb| -> Xyz {
 });
 impl_conversion!(|color: Xyz| -> Rgb {
     let f = REC709.transfer_fn;
-    // let color = match WHITE {
-    //     D65 => color,
-    //     _ => {
-    //         let m = Mat3(
-    //             Col3(0.8951, 0.2664, -0.1614),
-    //             Col3(-0.7502, 1.7135, 0.0367),
-    //             Col3(0.0389, -0.0685, 1.0296),
-    //         );
-    //         let mi = Mat3(
-    //             Col3(0.9869929, -0.1470543, 0.1599627),
-    //             Col3(0.4323053, 0.5183603, 0.0492912),
-    //             Col3(-0.0085287, 0.0400428, 0.9684867),
-    //         );
-    //         let Col3(ps, ys, bs) = m * {
-    //             let xyy = WHITE.tristimulus();
-    //             let [x, y, z] = [
-    //                 (xyy.0 * xyy.2) * xyy.1.recip(),
-    //                 xyy.2,
-    //                 ((1.0 - xyy.0 - xyy.1) * xyy.2) * xyy.1.recip(),
-    //             ];
-    //             Col3(x, y, z)
-    //         };
-    //         let Col3(pd, yd, bd) = m * {
-    //             let xyy = D65.tristimulus();
-    //             let [x, y, z] = [
-    //                 (xyy.0 * xyy.2) * xyy.1.recip(),
-    //                 xyy.2,
-    //                 ((1.0 - xyy.0 - xyy.1) * xyy.2) * xyy.1.recip(),
-    //             ];
-    //             Col3(x, y, z)
-    //         };
-    //         let adapt_mat =
-    //             (mi * Mat3(
-    //                 Col3(pd / ps, 0.0, 0.0),
-    //                 Col3(0.0, yd / ys, 0.0),
-    //                 Col3(0.0, 0.0, bd / bs),
-    //             )) * m;
-    //         let Col3(x, y, z) = adapt_mat * Col3(color.0, color.1, color.2);
-    //         Xyz::new([x, y, z, color.3])
-    //     }
-    // };
     let new_ch = REC709.conversion.inverse() * Col3(color.0, color.1, color.2);
     Color::new([f(new_ch.0), f(new_ch.1), f(new_ch.2), color.3])
 });
@@ -398,7 +357,7 @@ impl_conversion!(|color: Srgb| -> Xyz {
     Color::new([new_ch.0, new_ch.1, new_ch.2, color.3])
 });
 impl_conversion!(|color: Xyz| -> Srgb {
-    let new_ch = REC709.conversion * Col3(color.0, color.1, color.2);
+    let new_ch = REC709.conversion.inverse() * Col3(color.0, color.1, color.2);
     Color::new([new_ch.0, new_ch.1, new_ch.2, color.3])
 });
 impl_conversion!(|color: Xyz| -> Yxy {
