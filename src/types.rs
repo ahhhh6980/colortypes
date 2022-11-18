@@ -12,7 +12,7 @@ use crate::{colors::CIELab, Xyz, Yxy};
 pub trait WhiteType:  'static + Copy + Send + Sync {
 
 }
-
+#[const_trait]
 pub trait ColorType: 'static + Copy + Send + Sync {
     fn gamut() -> &'static ColorGamut;
     fn white() -> &'static White;
@@ -587,14 +587,23 @@ impl<SPACE: ColorType + Clone + Copy, const WHITE: White>
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Hash)]
 pub struct White {
-    pub tristimulus: fn() -> Col3,
+    pub t1: u64,
+    pub t2: u64,
+    pub t3: u64,
 }
 
 impl White {
+    pub fn new(tri: [f64;3]) -> Self {
+        White {
+            t1: tri[0].to_bits(),
+            t2: tri[1].to_bits(),
+            t3: tri[2].to_bits(),
+        }
+    }
     /// Return the tristimulus (xyY) value
     #[inline(always)]
     pub fn tristimulus(&self) -> Col3 {
-        (self.tristimulus)()
+        Col3::new([f64::from_bits(self.t1),f64::from_bits(self.t2),f64::from_bits(self.t3)])
     }
 
     /// Adapt to a new white point
@@ -661,19 +670,24 @@ impl White {
 /// Standard White Point D65
 #[allow(unused)]
 pub const D65: White = White {
-    tristimulus: || Col3(0.312727, 0.329023, 1.0),
+    t1: 0.312727f64.to_bits(),
+    t2: 0.329023f64.to_bits(),
+    t3: 1.0f64.to_bits(),
 };
-
 /// Standard White Point D50
 #[allow(unused)]
 pub const D50: White = White {
-    tristimulus: || Col3(0.34567, 0.35850, 1.0),
+    t1: 0.34567f64.to_bits(),
+    t2: 0.35850f64.to_bits(),
+    t3: 1.0f64.to_bits(),
 };
 
 /// Standard White Point E
 #[allow(unused)]
 pub const E: White = White {
-    tristimulus: || Col3(1.0 / 3.0, 1.0 / 3.0, 1.0)
+    t1: (1.0f64 / 3.0).to_bits(),
+    t2: (1.0f64 / 3.0).to_bits(),
+    t3: 1.0f64.to_bits(),
 };
 
 /// Convert a color temperature into xy chromaticity coordinates
@@ -753,7 +767,7 @@ impl ColorGamut {
 
         // Reference whitepoint tristimulus
         let ref_white = {
-            let white = t_to_xy(t as f64);
+            let white = t_to_xy(t);
             Col3(
                 white[0] * white[1].recip(),
                 1.0,
@@ -1169,7 +1183,7 @@ impl<
     where
         F: FnMut(&Color<SPACE, WHITE>),
     {
-        let _t = self.pixels().for_each(f);
+        self.pixels().for_each(f);
     }
 
     /// Apply a function over all pixels with mutability
@@ -1177,7 +1191,7 @@ impl<
     where
         F: FnMut(&mut Color<SPACE, WHITE>),
     {
-        let _t = self.pixels_mut().for_each(f);
+        self.pixels_mut().for_each(f);
     }
 
     /// Map a function over pixels and return a Color

@@ -1,9 +1,9 @@
 [package]
 name = "colortypes"
-version = "0.6.1"
+version = "0.6.2"
 edition = "2021"
 
-authors = ["Jacob Berube"]
+authors = ["Shelby Berube", "Jacob Berube"]
 readme = "README.md"
 license = "MIT"
 license-file = "LICENSE"
